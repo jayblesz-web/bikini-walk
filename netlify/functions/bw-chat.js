@@ -78,8 +78,14 @@ exports.handler = async function (event) {
   if (!message) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing message' }) };
   }
-  if (message.length > 2000) {
+  // Matches the frontend's 25-word limit, enforced again here in case
+  // someone calls this function directly rather than through the site's UI.
+  if (message.length > 220) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Message too long' }) };
+  }
+  const wordCount = message.split(/\s+/).filter(Boolean).length;
+  if (wordCount > 25) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Message too long — keep it under 25 words' }) };
   }
 
   let systemPrompt = (customPersona || DEFAULT_SYSTEM_PROMPT) + '\n\n' + SAFETY_FLOOR;
@@ -114,8 +120,14 @@ exports.handler = async function (event) {
           ...trimmedHistory,
           { role: 'user', content: message },
         ],
-        max_tokens: 380, // a little higher than before to leave room for the hidden memory line
-        temperature: 0.9,
+        // max_completion_tokens (not the older max_tokens) is what GPT-5-class
+        // models expect — sending the old parameter name can cause the whole
+        // request to be rejected on newer models.
+        max_completion_tokens: 380,
+        // GPT-5's reasoning-mode models reject `temperature` entirely (the
+        // request errors out rather than ignoring it), so it's left out here
+        // rather than risk breaking the call. If you're on a non-reasoning
+        // model and want more variation in replies, add temperature: 0.9 back in.
       }),
     });
 
@@ -152,3 +164,4 @@ exports.handler = async function (event) {
     return { statusCode: 500, body: JSON.stringify({ error: 'Something went wrong' }) };
   }
 };
+
