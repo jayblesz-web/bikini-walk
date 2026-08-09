@@ -28,6 +28,22 @@ const VOICE_STABILITY = 0.34;         // Stability: 34%
 const VOICE_SIMILARITY_BOOST = 0.0;   // Similarity: 0%
 const VOICE_STYLE = 0.03;             // Style Exaggeration: 3%
 
+// Phonetic overrides — swaps a word for a version spelled the way it should
+// SOUND, applied only to what gets sent to the voice engine. What the fan
+// actually reads in the chat bubble is untouched; this only affects audio.
+// Add more entries here anytime a word comes out mispronounced.
+const PRONUNCIATION_OVERRIDES = {
+  VYRA: 'VYE-rah', // stronger "eye" sound on the Y, rhymes with "spy-rah"
+};
+function applyPronunciationOverrides(text) {
+  let result = text;
+  for (const word in PRONUNCIATION_OVERRIDES) {
+    const regex = new RegExp('\\b' + word + '\\b', 'gi');
+    result = result.replace(regex, PRONUNCIATION_OVERRIDES[word]);
+  }
+  return result;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -45,7 +61,7 @@ exports.handler = async function (event) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing text' }) };
   }
   // ElevenLabs bills per character — keep replies from ballooning cost.
-  const clippedText = text.slice(0, 600);
+  const clippedText = applyPronunciationOverrides(text.slice(0, 600));
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
