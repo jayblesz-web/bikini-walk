@@ -21,7 +21,7 @@
 // e.g. audio.src = URL.createObjectURL(blob)
 
 // 1.0 = normal pace. ElevenLabs supports 0.7 (slowest) to 1.2 (fastest).
-const VOICE_SPEED = 0.80;
+const VOICE_SPEED = 0.83;
 
 // These three are all 0–1 (i.e. the dashboard's 0–100% sliders divided by 100).
 const VOICE_STABILITY = 0.34;         // Stability: 34%
