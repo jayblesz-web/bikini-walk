@@ -122,8 +122,16 @@ exports.handler = async function (event) {
         ],
         // max_completion_tokens (not the older max_tokens) is what GPT-5-class
         // models expect — sending the old parameter name can cause the whole
-        // request to be rejected on newer models.
-        max_completion_tokens: 380,
+        // request to be rejected on newer models. Set generously higher than
+        // the visible reply needs, because GPT-5's reasoning mode silently
+        // spends part of this budget on invisible "thinking" tokens before
+        // it writes anything — too low a number here and the whole budget
+        // gets eaten by thinking, leaving nothing for the actual reply.
+        max_completion_tokens: 1000,
+        // A short, casual chat reply doesn't need deep reasoning — keeping
+        // this minimal both avoids the empty-reply problem above and cuts
+        // cost, since heavier reasoning effort burns more tokens per message.
+        reasoning_effort: 'minimal',
         // GPT-5's reasoning-mode models reject `temperature` entirely (the
         // request errors out rather than ignoring it), so it's left out here
         // rather than risk breaking the call. If you're on a non-reasoning
@@ -140,7 +148,14 @@ exports.handler = async function (event) {
     const data = await response.json();
     const rawText = data.choices && data.choices[0] && data.choices[0].message
       ? data.choices[0].message.content.trim()
-      : "sorry, i'm a little spaced out right now — try that again?";
+      : '';
+
+    if (!rawText) {
+      // Log the full response so an empty reply is diagnosable instead of a
+      // silent guess — check Netlify → Logs → Functions → bw-chat if this
+      // shows up, it'll show exactly why (e.g. finish_reason, token usage).
+      console.error('Empty reply from OpenAI. Full response:', JSON.stringify(data));
+    }
 
     // Split the visible reply from the hidden memory line, if present.
     let reply = rawText;
@@ -164,4 +179,3 @@ exports.handler = async function (event) {
     return { statusCode: 500, body: JSON.stringify({ error: 'Something went wrong' }) };
   }
 };
-
