@@ -429,6 +429,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <p>Pick a pack. Chat starts the moment payment goes through.</p>
     <div class="chat-tier-list" id="chatTierList"></div>
     <button class="chat-tier-cancel" onclick="closeChatTierModal()">Cancel</button>
+    <div class="gate-disclaimer-display" id="chatTierDisclaimerDisplay"></div>
   </div>
 </div>
 
@@ -1623,6 +1624,9 @@ function openChatTierModal(){
       '<div class="price">' + escapeHtml(t.priceLabel || '') + '</div>' +
     '</button>';
   }).join('');
+  const noticeEl = document.getElementById('chatTierDisclaimerDisplay');
+  noticeEl.innerHTML = renderMemberNotice(state.disclaimer);
+  noticeEl.style.display = state.disclaimer ? 'block' : 'none';
   document.getElementById('chatTierModal').classList.add('active');
 }
 function closeChatTierModal(){
