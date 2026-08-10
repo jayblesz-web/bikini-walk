@@ -925,7 +925,9 @@ function grantAccess(email){
 // real shared version from the server, which is what every visitor
 // actually sees. If the network call fails for any reason, the local copy
 // already rendered is a safe fallback rather than a blank page.
-async function loadState(){
+// Loads whatever's cached in THIS browser instantly, synchronously — no
+// network wait. This is what the page renders with immediately on load.
+function loadLocalState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw){
@@ -936,23 +938,39 @@ async function loadState(){
   }catch(e){ console.error('local load failed', e); }
 
   try{
-    const res = await fetch('/.netlify/functions/site-state');
-    if(res.ok){
-      const data = await res.json();
-      if(data.state){
-        state = Object.assign(state, data.state);
-        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, password: ADMIN_PASSWORD })); }catch(e){}
-      }
-    }
-  }catch(e){ console.error('shared load failed, using local/default content:', e); }
-
-  try{
     const savedEmail = sessionStorage.getItem('bw_email') || '';
     if(savedEmail && isAccessValid(savedEmail)){
       unlocked = true;
       unlockedEmail = savedEmail;
     }
   }catch(e){}
+}
+// Fetches the real, shared, server-side version in the background — this
+// is what makes an Admin change reach every visitor. Deliberately does NOT
+// block the initial page render; the front page already shows instantly
+// using loadLocalState() above, and this quietly updates it a moment later
+// if the shared content differs. A 6-second timeout keeps a bad connection
+// from ever leaving the page permanently stuck on stale data.
+async function syncSharedState(){
+  try{
+    const fetchPromise = fetch('/.netlify/functions/site-state');
+    const timeoutPromise = new Promise(function(_, reject){
+      setTimeout(function(){ reject(new Error('sync timed out')); }, 6000);
+    });
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    if(res.ok){
+      const data = await res.json();
+      if(data.state){
+        state = Object.assign(state, data.state);
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, password: ADMIN_PASSWORD })); }catch(e){}
+        // Re-render everything now that fresher content may have arrived.
+        renderFrontPage();
+        renderDoors();
+        renderChatWidget();
+        renderChatAvatar();
+      }
+    }
+  }catch(e){ console.error('shared sync failed, page already showing local/cached content:', e); }
 }
 // Saves locally (instant, for snappy admin UX) and to shared server storage
 // (what actually makes the change visible to real visitors). The shared
@@ -2500,8 +2518,8 @@ function changeAdminPassword(){
 // ==========================================================
 //  INIT
 // ==========================================================
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadState();
+document.addEventListener('DOMContentLoaded', () => {
+  loadLocalState();
   renderFrontPage();
   document.getElementById('footerYear').textContent = new Date().getFullYear();
   checkStripeRedirect();
@@ -2511,6 +2529,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderChatWidget();
   checkChatStripeRedirect();
   resumeChatSessionIfActive();
+
+  // Sync with the real shared content in the background — the page above
+  // has already rendered instantly, this just quietly updates it if the
+  // server has something newer than what was cached locally.
+  syncSharedState();
 
   document.getElementById('gateLoginOverlay').addEventListener('mousedown', function(e){ if(e.target===this) closeGateLogin(); });
   document.getElementById('posterModal').addEventListener('mousedown', function(e){ if(e.target===this) closePosterModal(); });
