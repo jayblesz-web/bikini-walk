@@ -97,7 +97,15 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .gate-login-error a{color:var(--gold);}
 .gate-purchase-divider{color:var(--muted2);font-size:.7rem;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.1em;margin:1rem 0;}
 .gate-purchase-btn{width:100%;background:none;border:1px solid var(--gold);color:var(--gold);border-radius:8px;padding:.7rem 1.3rem;font-weight:700;font-size:.88rem;cursor:pointer;font-family:'Syne',sans-serif;margin-bottom:.4rem;}
-.gate-disclaimer-display{display:none;color:var(--muted);font-size:.75rem;line-height:1.5;margin-top:1rem;padding:.6rem .8rem;background:rgba(0,0,0,.15);border-radius:8px;border:1px solid var(--border);text-align:left;}
+.gate-disclaimer-display{display:none;color:var(--muted);font-size:.75rem;line-height:1.5;margin-top:1rem;padding:.6rem .8rem;background:rgba(0,0,0,.15);border-radius:8px;border:1px solid var(--border);text-align:left;max-height:220px;overflow-y:auto;}
+.gate-disclaimer-display .notice-title{color:var(--text);font-weight:800;margin-bottom:.4rem;font-size:.8rem;}
+.gate-disclaimer-display p{margin-bottom:.5rem;}
+.gate-disclaimer-display ul{margin:0 0 .5rem 1.1rem;padding:0;}
+.gate-disclaimer-display li{margin-bottom:.3rem;}
+.content-notice .notice-title{color:var(--text);font-weight:800;margin-bottom:.4rem;font-size:.72rem;}
+.content-notice p{margin-bottom:.5rem;text-align:left;}
+.content-notice ul{margin:0 0 .5rem 1.1rem;padding:0;text-align:left;}
+.content-notice li{margin-bottom:.3rem;}
 
 /* ===== THE CONTENT ROOM (doors + welcome video) ===== */
 #contentOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.98);z-index:8000;overflow-y:auto;}
@@ -360,7 +368,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       <button class="content-close" onclick="closeContentRoom()">✕ Close</button>
     </div>
 
-    <div class="content-notice">
+    <div class="content-notice" id="contentNoticeText">
       © All content here is exclusive, copyrighted material for members only. Recording, downloading, screen-capturing, or redistributing this content outside Bikini Walk is prohibited and may result in termination of access and legal action.
     </div>
 
@@ -607,8 +615,9 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <input class="admin-input" id="aRenewalStripeUrl" placeholder="https://buy.stripe.com/... (leave blank to reuse the link above)"/>
         <p style="color:var(--muted);font-size:.75rem;margin:-.4rem 0 .9rem;">Shown when someone's access has expired and they try to come back. Create a separate, cheaper Payment Link in Stripe for this — leave blank to just reuse the full-price link.</p>
 
-        <label class="admin-label">Disclaimer (shown before purchase)</label>
-        <textarea class="admin-textarea" id="aDisclaimer" placeholder="e.g. One-time charge. Instant access after checkout. No subscription."></textarea>
+        <label class="admin-label">Member Access Notice (shown before purchase, and again in grey at the top of the members area)</label>
+        <p style="color:var(--muted);font-size:.72rem;margin:-.4rem 0 .5rem;">First line becomes a bold title. Leave a blank line between paragraphs. Start a line with "* " to make it a bullet point.</p>
+        <textarea class="admin-textarea" id="aDisclaimer" style="min-height:220px;font-family:'Space Mono',monospace;font-size:.78rem;" placeholder="Member Access Notice title...&#10;&#10;A paragraph...&#10;&#10;* A bullet point&#10;* Another bullet point"></textarea>
         <button class="admin-btn" onclick="saveStripeSettings()">💾 Save Settings</button>
       </div>
 
@@ -762,7 +771,7 @@ let state = {
   "footerText": "Digital 1 Music. All rights reserved.",
   "stripeUrl": "",
   "renewalStripeUrl": "",
-  "disclaimer": "One-time purchase. Instant access after checkout. No subscription, no recurring charge.",
+  "disclaimer": "Bikini Walk — Member Access Notice\n\nBikini Walk features exclusive content from VYRA, a digital music artist.\n\nAll content available here is exclusive, copyrighted material intended for members only.\n\nBy purchasing or gaining access to Bikini Walk, you acknowledge and agree that:\n\n* All sales are final. No refunds will be issued once access has been granted.\n* Recording, downloading, copying, screen-capturing, screen-recording, reposting, sharing, selling, or redistributing any Bikini Walk content outside the member area is prohibited.\n* Membership access is for the individual purchaser only and may not be shared with others.\n* Unauthorized use or distribution of Bikini Walk content may result in immediate termination of access without refund and may lead to further legal action.\n\nVYRA is a digitally created artist, and Bikini Walk is an exclusive digital entertainment experience created for VYRA members.\n\nBy continuing with your purchase and accessing Bikini Walk, you agree to these terms.",
   "welcomeVideo": {
     "url": "https://res.cloudinary.com/duy0bc0wj/video/upload/v1784094865/Vyra_Intro_bplrjz.mp4"
   },
@@ -1026,6 +1035,41 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// Turns plain text (first line = title, blank-line-separated paragraphs,
+// lines starting with "* " = a bullet list) into properly formatted HTML —
+// used for the member access notice, shown both before purchase and at the
+// top of the members area, so both stay in sync from one source of text.
+function renderMemberNotice(text){
+  if(!text || !text.trim()) return '';
+  const lines = text.split('\n');
+  let html = '';
+  let inList = false;
+  let firstLine = true;
+
+  lines.forEach(function(line){
+    const trimmed = line.trim();
+    if(!trimmed){
+      if(inList){ html += '</ul>'; inList = false; }
+      return;
+    }
+    if(trimmed.indexOf('* ') === 0){
+      if(!inList){ html += '<ul>'; inList = true; }
+      html += '<li>' + escapeHtml(trimmed.slice(2)) + '</li>';
+      firstLine = false;
+      return;
+    }
+    if(inList){ html += '</ul>'; inList = false; }
+    if(firstLine){
+      html += '<div class="notice-title">' + escapeHtml(trimmed) + '</div>';
+      firstLine = false;
+    }else{
+      html += '<p>' + escapeHtml(trimmed) + '</p>';
+    }
+  });
+  if(inList) html += '</ul>';
+  return html;
+}
+
 // Auto-inserts Cloudinary's q_auto,f_auto (automatic quality + format) plus a
 // width cap into any Cloudinary URL that doesn't already have it. The width
 // cap matters as much as quality here — these videos never render wider than
@@ -1154,7 +1198,7 @@ function enterTheDoors(){
   }
 }
 function openGateLogin(){
-  document.getElementById('gateDisclaimerDisplay').textContent = state.disclaimer;
+  document.getElementById('gateDisclaimerDisplay').innerHTML = renderMemberNotice(state.disclaimer);
   document.getElementById('gateDisclaimerDisplay').style.display = state.disclaimer ? 'block' : 'none';
   document.getElementById('gateLoginError').style.display = 'none';
   document.getElementById('gateLoginEmail').value = '';
@@ -1265,6 +1309,7 @@ function previewAsVisitor(){
 }
 function openContentRoom(){
   document.getElementById('contentOverlay').classList.add('active');
+  document.getElementById('contentNoticeText').innerHTML = renderMemberNotice(state.disclaimer);
   welcomeHasPlayed = false; // play welcome video again each time the room opens
   renderWelcomeBanner();
   renderDoors();
