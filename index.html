@@ -481,7 +481,14 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <div class="tag">Get In Touch</div>
     <div class="title">Contact</div>
     <div class="body-text" id="contactModalBody"></div>
-    <a class="footer-contact-email" id="contactModalEmailLink" href="#">✉ Send an email</a>
+    <div id="contactFormWrap">
+      <input class="admin-input" id="contactFormName" placeholder="Your name" style="margin-bottom:.6rem;"/>
+      <input class="admin-input" id="contactFormEmail" type="email" placeholder="Your email" style="margin-bottom:.6rem;"/>
+      <input class="admin-input" id="contactFormSubject" placeholder="Subject" style="margin-bottom:.6rem;"/>
+      <textarea class="admin-textarea" id="contactFormMessage" style="min-height:110px;margin-bottom:.6rem;" placeholder="What's on your mind?"></textarea>
+      <button class="footer-contact-email" id="contactFormSendBtn" onclick="submitContactForm()" style="width:100%;border:1px solid var(--gold);background:none;cursor:pointer;font-family:'Syne',sans-serif;">✉ Send Message</button>
+    </div>
+    <div id="contactFormStatus" style="font-size:.78rem;margin-top:.6rem;text-align:center;display:none;"></div>
   </div>
 </div>
 
@@ -741,11 +748,12 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <div class="admin-section-title">📞 Contact & Legal</div>
         <p style="color:var(--muted);font-size:.78rem;margin-bottom:1rem;">Shown when visitors click "Contact" or "Accessibility Statement" in the footer.</p>
 
-        <label class="admin-label">Contact email</label>
-        <input class="admin-input" id="aContactEmail" placeholder="contact@example.com"/>
+        <label class="admin-label">Formspree endpoint (the contact form submits here)</label>
+        <input class="admin-input" id="aFormspreeEndpoint" placeholder="https://formspree.io/f/xxxxxxxx"/>
+        <p style="color:var(--muted);font-size:.72rem;margin:-.4rem 0 .9rem;">In Formspree: create a new form, set your real destination email there (never shown on the site), and paste the form's endpoint URL here. Visitors only ever talk to this address — your actual email stays private.</p>
 
         <label class="admin-label">Contact message</label>
-        <textarea class="admin-textarea" id="aContactMessage" style="min-height:80px;" placeholder="A short note shown above the email link..."></textarea>
+        <textarea class="admin-textarea" id="aContactMessage" style="min-height:80px;" placeholder="A short note shown above the contact form..."></textarea>
 
         <label class="admin-label">Accessibility Statement</label>
         <p style="color:var(--muted);font-size:.72rem;margin:-.4rem 0 .5rem;">Leave a blank line between paragraphs. Start a line with "* " to make it a bullet point.</p>
@@ -937,9 +945,9 @@ let state = {
     }
   ],
   "chatAvatarImage": "",
-  "contactEmail": "contact@example.com",
   "contactMessage": "Questions about membership, billing, or anything else? Reach out and we'll get back to you as soon as possible.",
-  "accessibilityStatement": "Bikini Walk is committed to making this site accessible to as many people as possible, including people with disabilities.\n\nWe aim to follow the Web Content Accessibility Guidelines (WCAG) 2.1 at Level AA where practical, covering areas such as color contrast, keyboard navigation, and compatibility with assistive technologies.\n\nKnown limitations:\n\n* Some interactive elements, such as the live chat and door animations, may not be fully optimized for all screen readers.\n* Video and audio content may not include captions or transcripts in every case.\n\nWe are continuously working to improve accessibility across the site. If you encounter a barrier while using Bikini Walk, or have suggestions for improvement, please contact us using the information on our Contact page — we take this feedback seriously and will do our best to address it."
+  "accessibilityStatement": "Bikini Walk is committed to making this site accessible to as many people as possible, including people with disabilities.\n\nWe aim to follow the Web Content Accessibility Guidelines (WCAG) 2.1 at Level AA where practical, covering areas such as color contrast, keyboard navigation, and compatibility with assistive technologies.\n\nKnown limitations:\n\n* Some interactive elements, such as the live chat and door animations, may not be fully optimized for all screen readers.\n* Video and audio content may not include captions or transcripts in every case.\n\nWe are continuously working to improve accessibility across the site. If you encounter a barrier while using Bikini Walk, or have suggestions for improvement, please contact us using the information on our Contact page — we take this feedback seriously and will do our best to address it.",
+  "formspreeEndpoint": ""
 };
 
 // unlocked state is per-session (sessionStorage), same as the original VIP room —
@@ -1616,13 +1624,69 @@ function closePosterEnlarge(){
 // ── Footer: Contact and Accessibility Statement modals ──
 function openContactModal(){
   document.getElementById('contactModalBody').innerHTML = renderMemberNotice(state.contactMessage, false);
-  const emailLink = document.getElementById('contactModalEmailLink');
-  emailLink.href = 'mailto:' + state.contactEmail;
-  emailLink.textContent = '✉ ' + state.contactEmail;
+  document.getElementById('contactFormName').value = '';
+  document.getElementById('contactFormEmail').value = '';
+  document.getElementById('contactFormSubject').value = '';
+  document.getElementById('contactFormMessage').value = '';
+  const status = document.getElementById('contactFormStatus');
+  status.style.display = 'none';
+  document.getElementById('contactFormWrap').style.display = 'block';
   document.getElementById('contactModal').classList.add('active');
 }
 function closeContactModal(){
   document.getElementById('contactModal').classList.remove('active');
+}
+// Submits to Formspree — the visitor's browser only ever talks to a public
+// Formspree form endpoint, never to your actual email address, which is
+// configured privately on Formspree's own dashboard, not anywhere in this
+// site's code.
+function submitContactForm(){
+  const name = document.getElementById('contactFormName').value.trim();
+  const email = document.getElementById('contactFormEmail').value.trim();
+  const subject = document.getElementById('contactFormSubject').value.trim();
+  const message = document.getElementById('contactFormMessage').value.trim();
+  const status = document.getElementById('contactFormStatus');
+  const sendBtn = document.getElementById('contactFormSendBtn');
+
+  status.style.display = 'block';
+  if(!name || !email || !message){
+    status.textContent = 'Please fill in your name, email, and a message.';
+    status.style.color = 'var(--accent)';
+    return;
+  }
+  if(!state.formspreeEndpoint){
+    status.textContent = 'Contact form isn\'t set up yet — please try again later.';
+    status.style.color = 'var(--accent)';
+    return;
+  }
+
+  status.textContent = 'Sending…';
+  status.style.color = 'var(--muted)';
+  sendBtn.disabled = true;
+
+  fetch(state.formspreeEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ name: name, email: email, subject: subject || '(no subject)', message: message }),
+  })
+    .then(function(res){
+      if(res.ok){
+        document.getElementById('contactFormWrap').style.display = 'none';
+        status.textContent = '✓ Message sent — thank you! We\'ll get back to you soon.';
+        status.style.color = 'var(--gold)';
+        status.style.display = 'block';
+      }else{
+        status.textContent = 'Something went wrong sending your message — please try again.';
+        status.style.color = 'var(--accent)';
+        sendBtn.disabled = false;
+      }
+    })
+    .catch(function(err){
+      console.error('contact form error:', err);
+      status.textContent = 'Connection error — please try again.';
+      status.style.color = 'var(--accent)';
+      sendBtn.disabled = false;
+    });
 }
 function openAccessibilityModal(){
   document.getElementById('accessibilityModalBody').innerHTML = renderMemberNotice(state.accessibilityStatement, false);
@@ -1992,7 +2056,7 @@ function renderAdminPanel(){
   document.getElementById('clearChatAvatarBtn').style.display = state.chatAvatarImage ? 'flex' : 'none';
   renderChatTiersAdmin();
 
-  document.getElementById('aContactEmail').value = state.contactEmail || '';
+  document.getElementById('aFormspreeEndpoint').value = state.formspreeEndpoint || '';
   document.getElementById('aContactMessage').value = state.contactMessage || '';
   document.getElementById('aAccessibilityStatement').value = state.accessibilityStatement || '';
 
@@ -2333,7 +2397,7 @@ function saveChatSettings(){
   showToast('✓ Chat settings saved');
 }
 function saveContactAndLegal(){
-  state.contactEmail = document.getElementById('aContactEmail').value.trim();
+  state.formspreeEndpoint = document.getElementById('aFormspreeEndpoint').value.trim();
   state.contactMessage = document.getElementById('aContactMessage').value;
   state.accessibilityStatement = document.getElementById('aAccessibilityStatement').value;
   saveState();
