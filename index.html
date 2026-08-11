@@ -158,6 +158,21 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .poster-item .poster-item-arrow{color:var(--gold);font-size:1rem;flex-shrink:0;}
 .poster-modal-close{position:fixed;top:max(1rem,env(safe-area-inset-top));right:1rem;background:rgba(40,40,48,.95);border:1px solid var(--gold);color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.1rem;cursor:pointer;z-index:10000;display:flex;align-items:center;justify-content:center;}
 
+/* footer modals — Contact and Accessibility Statement share this pattern */
+#contactModal,#accessibilityModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:9999;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;}
+#contactModal.active,#accessibilityModal.active{display:flex;}
+.footer-modal-box{max-width:480px;width:100%;}
+.footer-modal-box .tag{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem;text-align:center;}
+.footer-modal-box .title{font-size:1.3rem;font-weight:900;text-align:center;margin-bottom:1.2rem;}
+.footer-modal-box .body-text{color:var(--muted);font-size:.85rem;line-height:1.7;}
+.footer-modal-box .body-text .notice-title{color:var(--text);font-weight:800;margin-bottom:.4rem;font-size:.9rem;}
+.footer-modal-box .body-text p{margin-bottom:.6rem;}
+.footer-modal-box .body-text ul{margin:0 0 .6rem 1.1rem;padding:0;}
+.footer-modal-box .body-text li{margin-bottom:.35rem;}
+.footer-modal-box .body-text a{color:var(--gold);text-decoration:underline;}
+.footer-contact-email{display:block;text-align:center;background:var(--surface2);border:1px solid var(--gold);border-radius:10px;padding:.9rem;margin-top:1rem;color:var(--gold);font-weight:800;text-decoration:none;font-size:.95rem;}
+.footer-contact-email:hover{opacity:.85;}
+
 /* poster enlarge lightbox — tapping a poster's photo opens this before going to Printful */
 #posterEnlarge{display:none;position:fixed;inset:0;background:rgba(0,0,0,.98);z-index:10100;align-items:center;justify-content:center;padding:1.5rem;flex-direction:column;gap:1.2rem;}
 #posterEnlarge.active{display:flex;}
@@ -455,8 +470,29 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 
 <footer class="site-footer">
   <span id="footerYear"></span> <span id="footerCustomText"></span>
+  &nbsp;·&nbsp; <a onclick="openContactModal()">Contact</a>
+  &nbsp;·&nbsp; <a onclick="openAccessibilityModal()">Accessibility Statement</a>
   <a id="adminFooterLink" onclick="openAdminGate()" style="display:none;color:var(--gold);font-weight:700;"> &nbsp;·&nbsp; Admin</a>
 </footer>
+
+<div id="contactModal">
+  <button class="poster-modal-close" onclick="closeContactModal()">✕</button>
+  <div class="footer-modal-box">
+    <div class="tag">Get In Touch</div>
+    <div class="title">Contact</div>
+    <div class="body-text" id="contactModalBody"></div>
+    <a class="footer-contact-email" id="contactModalEmailLink" href="#">✉ Send an email</a>
+  </div>
+</div>
+
+<div id="accessibilityModal">
+  <button class="poster-modal-close" onclick="closeAccessibilityModal()">✕</button>
+  <div class="footer-modal-box">
+    <div class="tag">Legal</div>
+    <div class="title">Accessibility Statement</div>
+    <div class="body-text" id="accessibilityModalBody"></div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -702,6 +738,23 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       </div>
 
       <div class="admin-section">
+        <div class="admin-section-title">📞 Contact & Legal</div>
+        <p style="color:var(--muted);font-size:.78rem;margin-bottom:1rem;">Shown when visitors click "Contact" or "Accessibility Statement" in the footer.</p>
+
+        <label class="admin-label">Contact email</label>
+        <input class="admin-input" id="aContactEmail" placeholder="contact@example.com"/>
+
+        <label class="admin-label">Contact message</label>
+        <textarea class="admin-textarea" id="aContactMessage" style="min-height:80px;" placeholder="A short note shown above the email link..."></textarea>
+
+        <label class="admin-label">Accessibility Statement</label>
+        <p style="color:var(--muted);font-size:.72rem;margin:-.4rem 0 .5rem;">Leave a blank line between paragraphs. Start a line with "* " to make it a bullet point.</p>
+        <textarea class="admin-textarea" id="aAccessibilityStatement" style="min-height:200px;font-family:'Space Mono',monospace;font-size:.78rem;"></textarea>
+
+        <button class="admin-btn" onclick="saveContactAndLegal()" style="margin-top:.6rem;">💾 Save Contact & Legal</button>
+      </div>
+
+      <div class="admin-section">
         <div class="admin-section-title">Backup</div>
         <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
           <button class="admin-btn-outline" onclick="exportBackup()">⬇ Export Backup</button>
@@ -883,7 +936,10 @@ let state = {
       "unlimitedDays": 30
     }
   ],
-  "chatAvatarImage": ""
+  "chatAvatarImage": "",
+  "contactEmail": "contact@example.com",
+  "contactMessage": "Questions about membership, billing, or anything else? Reach out and we'll get back to you as soon as possible.",
+  "accessibilityStatement": "Bikini Walk is committed to making this site accessible to as many people as possible, including people with disabilities.\n\nWe aim to follow the Web Content Accessibility Guidelines (WCAG) 2.1 at Level AA where practical, covering areas such as color contrast, keyboard navigation, and compatibility with assistive technologies.\n\nKnown limitations:\n\n* Some interactive elements, such as the live chat and door animations, may not be fully optimized for all screen readers.\n* Video and audio content may not include captions or transcripts in every case.\n\nWe are continuously working to improve accessibility across the site. If you encounter a barrier while using Bikini Walk, or have suggestions for improvement, please contact us using the information on our Contact page — we take this feedback seriously and will do our best to address it."
 };
 
 // unlocked state is per-session (sessionStorage), same as the original VIP room —
@@ -1042,7 +1098,8 @@ function escapeHtml(s){
 // lines starting with "* " = a bullet list) into properly formatted HTML —
 // used for the member access notice, shown both before purchase and at the
 // top of the members area, so both stay in sync from one source of text.
-function renderMemberNotice(text){
+function renderMemberNotice(text, treatFirstLineAsTitle){
+  if(treatFirstLineAsTitle === undefined) treatFirstLineAsTitle = true;
   if(!text || !text.trim()) return '';
   const lines = text.split('\n');
   let html = '';
@@ -1062,11 +1119,12 @@ function renderMemberNotice(text){
       return;
     }
     if(inList){ html += '</ul>'; inList = false; }
-    if(firstLine){
+    if(firstLine && treatFirstLineAsTitle){
       html += '<div class="notice-title">' + escapeHtml(trimmed) + '</div>';
       firstLine = false;
     }else{
       html += '<p>' + escapeHtml(trimmed) + '</p>';
+      firstLine = false;
     }
   });
   if(inList) html += '</ul>';
@@ -1555,6 +1613,25 @@ function closePosterEnlarge(){
   document.getElementById('posterEnlarge').classList.remove('active');
 }
 
+// ── Footer: Contact and Accessibility Statement modals ──
+function openContactModal(){
+  document.getElementById('contactModalBody').innerHTML = renderMemberNotice(state.contactMessage, false);
+  const emailLink = document.getElementById('contactModalEmailLink');
+  emailLink.href = 'mailto:' + state.contactEmail;
+  emailLink.textContent = '✉ ' + state.contactEmail;
+  document.getElementById('contactModal').classList.add('active');
+}
+function closeContactModal(){
+  document.getElementById('contactModal').classList.remove('active');
+}
+function openAccessibilityModal(){
+  document.getElementById('accessibilityModalBody').innerHTML = renderMemberNotice(state.accessibilityStatement, false);
+  document.getElementById('accessibilityModal').classList.add('active');
+}
+function closeAccessibilityModal(){
+  document.getElementById('accessibilityModal').classList.remove('active');
+}
+
 // ==========================================================
 //  PAID CHAT — message-count packs (50 / 150 / Unlimited Monthly)
 //  Talks to two Netlify Functions (netlify/functions/bw-chat.js and
@@ -1915,6 +1992,10 @@ function renderAdminPanel(){
   document.getElementById('clearChatAvatarBtn').style.display = state.chatAvatarImage ? 'flex' : 'none';
   renderChatTiersAdmin();
 
+  document.getElementById('aContactEmail').value = state.contactEmail || '';
+  document.getElementById('aContactMessage').value = state.contactMessage || '';
+  document.getElementById('aAccessibilityStatement').value = state.accessibilityStatement || '';
+
   ['tag','title','sub','link'].forEach(function(key){
     const cfg = state.heroElements[key];
     const textInput = document.getElementById('el' + capitalize(key) + 'Text');
@@ -2250,6 +2331,13 @@ function saveChatSettings(){
   saveState();
   renderChatWidget();
   showToast('✓ Chat settings saved');
+}
+function saveContactAndLegal(){
+  state.contactEmail = document.getElementById('aContactEmail').value.trim();
+  state.contactMessage = document.getElementById('aContactMessage').value;
+  state.accessibilityStatement = document.getElementById('aAccessibilityStatement').value;
+  saveState();
+  showToast('✓ Contact & Legal saved');
 }
 function uploadChatAvatar(e){
   const file = e.target.files[0];
@@ -2668,6 +2756,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('posterModal').addEventListener('mousedown', function(e){ if(e.target===this) closePosterModal(); });
   document.getElementById('posterEnlarge').addEventListener('mousedown', function(e){ if(e.target===this) closePosterEnlarge(); });
   document.getElementById('chatTierModal').addEventListener('mousedown', function(e){ if(e.target===this) closeChatTierModal(); });
+  document.getElementById('contactModal').addEventListener('mousedown', function(e){ if(e.target===this) closeContactModal(); });
+  document.getElementById('accessibilityModal').addEventListener('mousedown', function(e){ if(e.target===this) closeAccessibilityModal(); });
 
   // Hidden admin access: type "adm" anywhere on the page (not while typing in
   // a text field) to reveal the gold Admin link in the footer. Keeps it off
