@@ -2568,7 +2568,7 @@ function importBackup(e){
   reader.readAsText(file);
   e.target.value = '';
 }
-function changeAdminPassword(){
+async function changeAdminPassword(){
   const current = document.getElementById('cpCurrent').value;
   const next = document.getElementById('cpNew').value;
   const confirm_ = document.getElementById('cpConfirm').value;
@@ -2577,16 +2577,44 @@ function changeAdminPassword(){
   if(current !== ADMIN_PASSWORD){ err.textContent = 'Current password is incorrect.'; err.style.display='block'; return; }
   if(next.length < 6){ err.textContent = 'New password must be at least 6 characters.'; err.style.display='block'; return; }
   if(next !== confirm_){ err.textContent = 'Passwords do not match.'; err.style.display='block'; return; }
-  // Order matters: saveState() needs the OLD ADMIN_PASSWORD (still current
-  // at this point) to authorize the change server-side, with `next` sent
-  // as the new password to actually set. Only update the local variable
-  // after that request has been built.
-  saveState(next);
+
+  // Save locally right away (instant, for the local admin UI), but don't
+  // treat the password as actually changed until the SHARED save is
+  // confirmed — that's what every other device/visitor actually checks
+  // against, so a false "success" here would be actively misleading.
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, password: next }));
+  }catch(e){}
+
+  showToast('Saving new password…');
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'save',
+        password: ADMIN_PASSWORD,
+        newPassword: next,
+        state: state,
+      }),
+    });
+    if(!res.ok){
+      err.textContent = 'Password change failed to save (server error) — your old password still works. Try again.';
+      err.style.display = 'block';
+      return;
+    }
+  }catch(e){
+    err.textContent = 'Password change failed to save (connection error) — your old password still works. Try again.';
+    err.style.display = 'block';
+    return;
+  }
+
+  // Only NOW that the shared save is confirmed do we treat it as changed.
   ADMIN_PASSWORD = next;
   document.getElementById('cpCurrent').value = '';
   document.getElementById('cpNew').value = '';
   document.getElementById('cpConfirm').value = '';
-  showToast('✓ Password updated');
+  showToast('✓ Password updated and saved to the live site');
 }
 
 // ==========================================================
