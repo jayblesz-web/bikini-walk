@@ -521,12 +521,14 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         </div>
 
         <label class="admin-label">Hero photo</label>
-        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:1.2rem;">
+        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;">
           <img id="aHeroPreview" style="width:60px;height:76px;object-fit:cover;border-radius:6px;background:var(--surface2);"/>
           <label class="small-btn" for="aHeroFileInput" style="cursor:pointer;">Upload new</label>
           <input type="file" id="aHeroFileInput" accept="image/*" style="display:none;" onchange="adminUploadHero(event)"/>
           <button class="remove-door-btn" id="clearHeroPhotoBtn" style="display:none;flex-shrink:0;" onclick="clearHeroPhoto()" title="Remove photo">✕</button>
         </div>
+        <label class="admin-label">Or paste an image URL (recommended — hosted images don't count against your storage limit)</label>
+        <input class="admin-input" id="aHeroUrl" placeholder="https://res.cloudinary.com/.../your-photo.jpg" oninput="setHeroFromUrl(this.value)"/>
         <button class="admin-btn" onclick="saveFrontPage()">💾 Save Photo</button>
       </div>
 
@@ -1897,6 +1899,7 @@ async function adminLogin(){
 function renderAdminPanel(){
   document.getElementById('aHeroPreview').src = state.heroImage || '';
   document.getElementById('clearHeroPhotoBtn').style.display = state.heroImage ? 'flex' : 'none';
+  document.getElementById('aHeroUrl').value = (state.heroImage && state.heroImage.indexOf('data:') !== 0) ? state.heroImage : '';
   document.getElementById('aFooterText').value = state.footerText;
   document.getElementById('aStripeUrl').value = state.stripeUrl;
   document.getElementById('aRenewalStripeUrl').value = state.renewalStripeUrl;
@@ -2173,6 +2176,7 @@ function adminUploadHero(e){
   reader.onload = function(ev){
     state.heroImage = ev.target.result;
     document.getElementById('aHeroPreview').src = state.heroImage;
+    document.getElementById('aHeroUrl').value = ''; // clear URL field — a direct upload takes priority
     document.getElementById('clearHeroPhotoBtn').style.display = 'flex';
     saveState();
     renderFrontPage();
@@ -2181,9 +2185,23 @@ function adminUploadHero(e){
   };
   reader.readAsDataURL(file);
 }
+// Setting the hero photo by URL instead of uploading avoids the storage
+// bloat entirely — the image lives on Cloudinary (or wherever it's hosted),
+// this just points to it, so it never counts against the site's save limit.
+function setHeroFromUrl(url){
+  const trimmed = url.trim();
+  if(!trimmed) return;
+  state.heroImage = trimmed;
+  document.getElementById('aHeroPreview').src = trimmed;
+  document.getElementById('clearHeroPhotoBtn').style.display = 'flex';
+  saveState();
+  renderFrontPage();
+  updateHeroPreview();
+}
 function clearHeroPhoto(){
   state.heroImage = '';
   document.getElementById('aHeroPreview').src = '';
+  document.getElementById('aHeroUrl').value = '';
   document.getElementById('clearHeroPhotoBtn').style.display = 'none';
   saveState();
   renderFrontPage();
@@ -2387,6 +2405,7 @@ function renderAdminPosterSection(d){
         '<img class="thumb" src="' + escapeHtml(p.image||'') + '" onerror="this.style.opacity=0"/>' +
         '<div class="grow">' +
           '<input value="' + escapeHtml(p.label||'') + '" placeholder="Design name (e.g. Woman in Red)" oninput="updatePoster(\'' + d.id + '\',' + i + ',\'label\',this.value)"/>' +
+          '<input value="' + escapeHtml(p.image||'') + '" placeholder="Photo URL (recommended — no storage limit)" oninput="updatePoster(\'' + d.id + '\',' + i + ',\'image\',this.value)"/>' +
           '<input value="' + escapeHtml(p.url||'') + '" placeholder="Printful product URL" oninput="updatePoster(\'' + d.id + '\',' + i + ',\'url\',this.value)"/>' +
         '</div>' +
         '<label class="small-btn" style="cursor:pointer;">Upload<input type="file" accept="image/*" style="display:none;" onchange="uploadPosterImage(\'' + d.id + '\',' + i + ', event)"/></label>' +
@@ -2397,7 +2416,7 @@ function renderAdminPosterSection(d){
       '<div class="admin-door-card-title" style="margin-bottom:.6rem;">🖼 Poster Link (' + posters.length + '/8)</div>' +
       '<label class="admin-label">Link text shown below this door</label>' +
       '<input class="admin-door-input" id="door-posterlink-' + d.id + '" value="' + escapeHtml(d.posterLinkText||'') + '" placeholder="Shop Posters →" oninput="liveDoorUpdate(\'' + d.id + '\')"/>' +
-      '<p style="color:var(--muted);font-size:.72rem;margin:.3rem 0 .7rem;">30×40 posters. Each design links straight to its own Printful product page.</p>' +
+      '<p style="color:var(--muted);font-size:.72rem;margin:.3rem 0 .7rem;">30×40 posters. Each design links straight to its own Printful product page. Paste a hosted photo URL (Cloudinary etc.) instead of uploading — uploaded photos count against your storage limit, hosted ones don\'t.</p>' +
       rows +
       (posters.length < 8 ? '<button class="small-btn" onclick="addPoster(\'' + d.id + '\')">➕ Add poster (' + posters.length + '/8)</button>' : '<p style="color:var(--muted2);font-size:.72rem;">Maximum of 8 posters reached.</p>') +
     '</div>';
