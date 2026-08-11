@@ -1788,6 +1788,14 @@ function sendChatMessage(){
       const reply = data.reply || "sorry, having a moment — try again?";
       addChatMessage('reply', reply);
       chatHistory.push({ role: 'assistant', content: reply });
+      // Cap what's actually stored — the full conversation is never needed
+      // for display or context (only the last 12 turns are ever sent to the
+      // AI anyway), so keeping everything forever just risks quietly
+      // filling up storage over weeks of real use.
+      const MAX_STORED_HISTORY = 40;
+      if(chatHistory.length > MAX_STORED_HISTORY){
+        chatHistory = chatHistory.slice(-MAX_STORED_HISTORY);
+      }
       try{ localStorage.setItem('bw_chat_history', JSON.stringify(chatHistory)); }catch(e){}
 
       // Save the updated fan memory for next time, if one came back.
