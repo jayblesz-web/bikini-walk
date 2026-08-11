@@ -115,7 +115,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .content-head .tag{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;}
 .content-head .title{font-size:1.8rem;font-weight:900;}
 .content-close{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.5rem 1rem;border-radius:8px;cursor:pointer;}
-.content-notice{text-align:center;font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:.04em;line-height:1.6;margin-bottom:1.5rem;padding:.6rem 1rem;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.2);}
+.content-notice{text-align:center;font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:.04em;line-height:1.6;margin-top:2rem;padding:.6rem 1rem;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.2);}
 
 /* welcome video banner */
 #welcomeBanner{margin:0 auto 1.8rem;max-width:460px;border-radius:14px;overflow:hidden;border:1px solid var(--gold);cursor:pointer;background:var(--surface2);}
@@ -383,10 +383,6 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       <button class="content-close" onclick="closeContentRoom()">✕ Close</button>
     </div>
 
-    <div class="content-notice" id="contentNoticeText">
-      © All content here is exclusive, copyrighted material for members only. Recording, downloading, screen-capturing, or redistributing this content outside Bikini Walk is prohibited and may result in termination of access and legal action.
-    </div>
-
     <!-- welcome video banner -->
     <div id="welcomeBanner" onclick="replayWelcome()">
       <div class="welcome-inner">
@@ -402,6 +398,10 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <!-- doors -->
     <div class="doors-grid" id="doorsGrid"></div>
     <div id="contentEmpty">No content yet.</div>
+
+    <div class="content-notice" id="contentNoticeText">
+      © All content here is exclusive, copyrighted material for members only. Recording, downloading, screen-capturing, or redistributing this content outside Bikini Walk is prohibited and may result in termination of access and legal action.
+    </div>
 
     <!-- door stage: opens directly to the content, no swing animation -->
     <div id="doorStage" class="door-stage">
@@ -1106,6 +1106,12 @@ function escapeHtml(s){
 // lines starting with "* " = a bullet list) into properly formatted HTML —
 // used for the member access notice, shown both before purchase and at the
 // top of the members area, so both stay in sync from one source of text.
+// Converts **bold** markers into real <strong> tags. Must run AFTER
+// escapeHtml() on the same text — escaping never touches asterisks, so
+// this is safe, and it only ever inserts a fixed, known-safe tag.
+function applyInlineBold(escapedText){
+  return escapedText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
 function renderMemberNotice(text, treatFirstLineAsTitle){
   if(treatFirstLineAsTitle === undefined) treatFirstLineAsTitle = true;
   if(!text || !text.trim()) return '';
@@ -1122,16 +1128,16 @@ function renderMemberNotice(text, treatFirstLineAsTitle){
     }
     if(trimmed.indexOf('* ') === 0){
       if(!inList){ html += '<ul>'; inList = true; }
-      html += '<li>' + escapeHtml(trimmed.slice(2)) + '</li>';
+      html += '<li>' + applyInlineBold(escapeHtml(trimmed.slice(2))) + '</li>';
       firstLine = false;
       return;
     }
     if(inList){ html += '</ul>'; inList = false; }
     if(firstLine && treatFirstLineAsTitle){
-      html += '<div class="notice-title">' + escapeHtml(trimmed) + '</div>';
+      html += '<div class="notice-title">' + applyInlineBold(escapeHtml(trimmed)) + '</div>';
       firstLine = false;
     }else{
-      html += '<p>' + escapeHtml(trimmed) + '</p>';
+      html += '<p>' + applyInlineBold(escapeHtml(trimmed)) + '</p>';
       firstLine = false;
     }
   });
