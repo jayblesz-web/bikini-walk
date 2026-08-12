@@ -731,12 +731,13 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <textarea class="admin-textarea" id="aChatPersona" style="min-height:110px;" oninput="saveChatSettings()"></textarea>
 
         <label class="admin-label" style="margin-top:.6rem;">Chat avatar photo (shown in the chat header, glows while she's talking)</label>
-        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:1rem;">
+        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;">
           <img id="aChatAvatarPreview" style="width:44px;height:44px;object-fit:cover;border-radius:50%;background:var(--surface2);"/>
           <label class="small-btn" for="aChatAvatarFileInput" style="cursor:pointer;">Upload</label>
           <input type="file" id="aChatAvatarFileInput" accept="image/*" style="display:none;" onchange="uploadChatAvatar(event)"/>
           <button class="remove-door-btn" id="clearChatAvatarBtn" style="display:none;" onclick="clearChatAvatar()" title="Remove photo">✕</button>
         </div>
+        <input class="admin-input" id="aChatAvatarUrl" placeholder="Or paste an image URL (recommended — no storage limit)" oninput="setChatAvatarFromUrl(this.value)" style="margin-bottom:1rem;"/>
 
         <label class="admin-label" style="margin-top:.6rem;">Message packs — one Stripe Payment Link per tier</label>
         <div id="chatTiersAdminList"></div>
@@ -2059,6 +2060,7 @@ function renderAdminPanel(){
   document.getElementById('aChatEnabled').checked = !!state.chatEnabled;
   document.getElementById('aChatPersona').value = state.chatPersonaPrompt || '';
   document.getElementById('aChatAvatarPreview').src = state.chatAvatarImage || '';
+  document.getElementById('aChatAvatarUrl').value = (state.chatAvatarImage && state.chatAvatarImage.indexOf('data:') !== 0) ? state.chatAvatarImage : '';
   document.getElementById('clearChatAvatarBtn').style.display = state.chatAvatarImage ? 'flex' : 'none';
   renderChatTiersAdmin();
 
@@ -2416,6 +2418,7 @@ function uploadChatAvatar(e){
   reader.onload = function(ev){
     state.chatAvatarImage = ev.target.result;
     document.getElementById('aChatAvatarPreview').src = state.chatAvatarImage;
+    document.getElementById('aChatAvatarUrl').value = ''; // clear URL field — a direct upload takes priority
     document.getElementById('clearChatAvatarBtn').style.display = 'flex';
     saveState();
     renderChatWidget();
@@ -2423,9 +2426,21 @@ function uploadChatAvatar(e){
   };
   reader.readAsDataURL(file);
 }
+// Setting the avatar by URL instead of uploading avoids the storage bloat
+// entirely — same reasoning as the hero photo URL field.
+function setChatAvatarFromUrl(url){
+  const trimmed = url.trim();
+  if(!trimmed) return;
+  state.chatAvatarImage = trimmed;
+  document.getElementById('aChatAvatarPreview').src = trimmed;
+  document.getElementById('clearChatAvatarBtn').style.display = 'flex';
+  saveState();
+  renderChatWidget();
+}
 function clearChatAvatar(){
   state.chatAvatarImage = '';
   document.getElementById('aChatAvatarPreview').src = '';
+  document.getElementById('aChatAvatarUrl').value = '';
   document.getElementById('clearChatAvatarBtn').style.display = 'none';
   saveState();
   renderChatWidget();
