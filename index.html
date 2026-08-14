@@ -427,7 +427,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 <!-- tapping a poster's photo opens this enlarged view before heading to Printful -->
 <div id="posterEnlarge">
   <button class="poster-enlarge-close" onclick="closePosterEnlarge()">✕</button>
-  <img id="posterEnlargeImg" src="" alt=""/>
+  <img id="posterEnlargeImg" src="" alt="" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>
   <div id="posterEnlargeLabel"></div>
   <a class="poster-enlarge-shop-btn" id="posterEnlargeShopBtn" href="#" target="_blank" rel="noopener">★ Shop This Design</a>
 </div>
@@ -836,7 +836,7 @@ let state = {
   "footerText": "Digital 1 Music. All rights reserved.",
   "stripeUrl": "",
   "renewalStripeUrl": "",
-  "disclaimer": "Bikini Walk — Member Access Notice\n\nBikini Walk features exclusive content from VYRA, a digital music artist.\n\nAll content available here is exclusive, copyrighted material intended for members only.\n\nBy purchasing or gaining access to Bikini Walk, you acknowledge and agree that:\n\n* All sales are final. No refunds will be issued once access has been granted.\n* Recording, downloading, copying, screen-capturing, screen-recording, reposting, sharing, selling, or redistributing any Bikini Walk content outside the member area is prohibited.\n* Membership access is for the individual purchaser only and may not be shared with others.\n* Unauthorized use or distribution of Bikini Walk content may result in immediate termination of access without refund and may lead to further legal action.\n\nVYRA is a digitally created artist, and Bikini Walk is an exclusive digital entertainment experience created for VYRA members.\n\nBy continuing with your purchase and accessing Bikini Walk, you agree to these terms.",
+  "disclaimer": "Bikini Walk — Member Access Notice\n\nBikini Walk features exclusive content from VYRA, a digital music artist.\n\nAll content available here is exclusive, copyrighted material intended for members only.\n\nBy purchasing or gaining access to Bikini Walk, you acknowledge and agree that:\n\n* All sales are final. No refunds will be issued once access has been granted.\n* Recording, downloading, copying, screen-capturing, or screen-recording any Bikini Walk content is prohibited — **this includes sending it to friends or family, posting it on social media, or uploading it to any other website or platform.**\n* Membership access is for the individual purchaser only and may not be shared with others.\n* Unauthorized use or distribution of Bikini Walk content may result in immediate termination of access without refund and may lead to further legal action.\n\nVYRA is a digitally created artist, and Bikini Walk is an exclusive digital entertainment experience created for VYRA members.\n\nBy continuing with your purchase and accessing Bikini Walk, you agree to these terms.",
   "welcomeVideo": {
     "url": "https://res.cloudinary.com/duy0bc0wj/video/upload/v1784094865/Vyra_Intro_bplrjz.mp4"
   },
@@ -1487,7 +1487,7 @@ function renderDoorsInto(gridId, emptyId){
     const hasPosters = d.posters && d.posters.length > 0;
 
     const doorHtml = '<div class="door' + (hasContent ? '' : ' empty') + (hasThumb ? ' has-thumb' : '') + '" onclick="' + (hasContent ? "openDoor('" + d.id + "')" : '') + '">' +
-      '<div class="door-bg">' + (hasThumb ? '<img src="' + d.thumbnail + '"/>' : '<span>★</span>') + '</div>' +
+      '<div class="door-bg">' + (hasThumb ? '<img src="' + d.thumbnail + '" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>' : '<span>★</span>') + '</div>' +
       '<div class="door-panel">' +
         '<div class="door-star">★</div>' +
         '<div class="door-label-txt">' + escapeHtml(d.label) + '</div>' +
@@ -1588,7 +1588,7 @@ function openPosterModal(doorId){
   const grid = document.getElementById('posterModalGrid');
   grid.innerHTML = door.posters.map(function(p, i){
     const img = p.image
-      ? '<img src="' + p.image + '" alt=""/>'
+      ? '<img src="' + p.image + '" alt="" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>'
       : '<div style="width:56px;height:74px;flex-shrink:0;border-radius:5px;display:flex;align-items:center;justify-content:center;background:var(--surface3);color:var(--muted2);font-size:1.3rem;">★</div>';
     const label = escapeHtml(p.label || ('Design ' + (i + 1)));
     return '<div class="poster-item" onclick="openPosterEnlarge(\'' + doorId + '\',' + i + ')">' +
