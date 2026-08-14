@@ -97,7 +97,15 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .gate-login-error a{color:var(--gold);}
 .gate-purchase-divider{color:var(--muted2);font-size:.7rem;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.1em;margin:1rem 0;}
 .gate-purchase-btn{width:100%;background:none;border:1px solid var(--gold);color:var(--gold);border-radius:8px;padding:.7rem 1.3rem;font-weight:700;font-size:.88rem;cursor:pointer;font-family:'Syne',sans-serif;margin-bottom:.4rem;}
-.gate-disclaimer-display{display:none;color:var(--muted);font-size:.75rem;line-height:1.5;margin-top:1rem;padding:.6rem .8rem;background:rgba(0,0,0,.15);border-radius:8px;border:1px solid var(--border);text-align:left;}
+.gate-disclaimer-display{display:none;color:var(--muted);font-size:.75rem;line-height:1.5;margin-top:1rem;padding:.6rem .8rem;background:rgba(0,0,0,.15);border-radius:8px;border:1px solid var(--border);text-align:left;max-height:220px;overflow-y:auto;}
+.gate-disclaimer-display .notice-title{color:var(--text);font-weight:800;margin-bottom:.4rem;font-size:.8rem;}
+.gate-disclaimer-display p{margin-bottom:.5rem;}
+.gate-disclaimer-display ul{margin:0 0 .5rem 1.1rem;padding:0;}
+.gate-disclaimer-display li{margin-bottom:.3rem;}
+.content-notice .notice-title{color:var(--text);font-weight:800;margin-bottom:.4rem;font-size:.72rem;}
+.content-notice p{margin-bottom:.5rem;text-align:left;}
+.content-notice ul{margin:0 0 .5rem 1.1rem;padding:0;text-align:left;}
+.content-notice li{margin-bottom:.3rem;}
 
 /* ===== THE CONTENT ROOM (doors + welcome video) ===== */
 #contentOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.98);z-index:8000;overflow-y:auto;}
@@ -107,7 +115,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .content-head .tag{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;}
 .content-head .title{font-size:1.8rem;font-weight:900;}
 .content-close{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.5rem 1rem;border-radius:8px;cursor:pointer;}
-.content-notice{text-align:center;font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:.04em;line-height:1.6;margin-bottom:1.5rem;padding:.6rem 1rem;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.2);}
+.content-notice{text-align:center;font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:.04em;line-height:1.6;margin-top:2rem;padding:.6rem 1rem;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.2);}
 
 /* welcome video banner */
 #welcomeBanner{margin:0 auto 1.8rem;max-width:460px;border-radius:14px;overflow:hidden;border:1px solid var(--gold);cursor:pointer;background:var(--surface2);}
@@ -149,6 +157,21 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .poster-item .poster-item-label{flex:1;text-align:left;font-family:'Space Mono',monospace;font-size:.78rem;color:var(--text);letter-spacing:.02em;font-weight:700;}
 .poster-item .poster-item-arrow{color:var(--gold);font-size:1rem;flex-shrink:0;}
 .poster-modal-close{position:fixed;top:max(1rem,env(safe-area-inset-top));right:1rem;background:rgba(40,40,48,.95);border:1px solid var(--gold);color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.1rem;cursor:pointer;z-index:10000;display:flex;align-items:center;justify-content:center;}
+
+/* footer modals — Contact and Accessibility Statement share this pattern */
+#contactModal,#accessibilityModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:9999;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;}
+#contactModal.active,#accessibilityModal.active{display:flex;}
+.footer-modal-box{max-width:480px;width:100%;}
+.footer-modal-box .tag{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem;text-align:center;}
+.footer-modal-box .title{font-size:1.3rem;font-weight:900;text-align:center;margin-bottom:1.2rem;}
+.footer-modal-box .body-text{color:var(--muted);font-size:.85rem;line-height:1.7;}
+.footer-modal-box .body-text .notice-title{color:var(--text);font-weight:800;margin-bottom:.4rem;font-size:.9rem;}
+.footer-modal-box .body-text p{margin-bottom:.6rem;}
+.footer-modal-box .body-text ul{margin:0 0 .6rem 1.1rem;padding:0;}
+.footer-modal-box .body-text li{margin-bottom:.35rem;}
+.footer-modal-box .body-text a{color:var(--gold);text-decoration:underline;}
+.footer-contact-email{display:block;text-align:center;background:var(--surface2);border:1px solid var(--gold);border-radius:10px;padding:.9rem;margin-top:1rem;color:var(--gold);font-weight:800;text-decoration:none;font-size:.95rem;}
+.footer-contact-email:hover{opacity:.85;}
 
 /* poster enlarge lightbox — tapping a poster's photo opens this before going to Printful */
 #posterEnlarge{display:none;position:fixed;inset:0;background:rgba(0,0,0,.98);z-index:10100;align-items:center;justify-content:center;padding:1.5rem;flex-direction:column;gap:1.2rem;}
@@ -200,6 +223,8 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .chat-msg{max-width:80%;padding:.6rem .85rem;border-radius:14px;font-size:.85rem;line-height:1.45;word-wrap:break-word;}
 .chat-msg.user{align-self:flex-end;background:var(--surface3);color:var(--text);border-bottom-right-radius:4px;}
 .chat-msg.reply{align-self:flex-start;background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.3);color:var(--text);border-bottom-left-radius:4px;}
+.chat-msg a{color:var(--gold);text-decoration:underline;word-break:break-word;}
+.chat-msg a:hover{opacity:.8;}
 .chat-msg.typing{align-self:flex-start;color:var(--muted);font-size:.78rem;font-style:italic;}
 .chat-msg.system{align-self:center;color:var(--muted);font-size:.72rem;text-align:center;font-family:'Space Mono',monospace;}
 .chat-input-row{display:flex;gap:.5rem;padding:.7rem;border-top:1px solid var(--border);flex-shrink:0;}
@@ -358,10 +383,6 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       <button class="content-close" onclick="closeContentRoom()">✕ Close</button>
     </div>
 
-    <div class="content-notice">
-      © All content here is exclusive, copyrighted material for members only. Recording, downloading, screen-capturing, or redistributing this content outside Bikini Walk is prohibited and may result in termination of access and legal action.
-    </div>
-
     <!-- welcome video banner -->
     <div id="welcomeBanner" onclick="replayWelcome()">
       <div class="welcome-inner">
@@ -377,6 +398,10 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <!-- doors -->
     <div class="doors-grid" id="doorsGrid"></div>
     <div id="contentEmpty">No content yet.</div>
+
+    <div class="content-notice" id="contentNoticeText">
+      © All content here is exclusive, copyrighted material for members only. Recording, downloading, screen-capturing, or redistributing this content outside Bikini Walk is prohibited and may result in termination of access and legal action.
+    </div>
 
     <!-- door stage: opens directly to the content, no swing animation -->
     <div id="doorStage" class="door-stage">
@@ -402,7 +427,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 <!-- tapping a poster's photo opens this enlarged view before heading to Printful -->
 <div id="posterEnlarge">
   <button class="poster-enlarge-close" onclick="closePosterEnlarge()">✕</button>
-  <img id="posterEnlargeImg" src="" alt=""/>
+  <img id="posterEnlargeImg" src="" alt="" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>
   <div id="posterEnlargeLabel"></div>
   <a class="poster-enlarge-shop-btn" id="posterEnlargeShopBtn" href="#" target="_blank" rel="noopener">★ Shop This Design</a>
 </div>
@@ -419,6 +444,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <p>Pick a pack. Chat starts the moment payment goes through.</p>
     <div class="chat-tier-list" id="chatTierList"></div>
     <button class="chat-tier-cancel" onclick="closeChatTierModal()">Cancel</button>
+    <div class="gate-disclaimer-display" id="chatTierDisclaimerDisplay"></div>
   </div>
 </div>
 
@@ -444,8 +470,36 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 
 <footer class="site-footer">
   <span id="footerYear"></span> <span id="footerCustomText"></span>
+  &nbsp;·&nbsp; <a onclick="openContactModal()">Contact</a>
+  &nbsp;·&nbsp; <a onclick="openAccessibilityModal()">Accessibility Statement</a>
   <a id="adminFooterLink" onclick="openAdminGate()" style="display:none;color:var(--gold);font-weight:700;"> &nbsp;·&nbsp; Admin</a>
 </footer>
+
+<div id="contactModal">
+  <button class="poster-modal-close" onclick="closeContactModal()">✕</button>
+  <div class="footer-modal-box">
+    <div class="tag">Get In Touch</div>
+    <div class="title">Contact</div>
+    <div class="body-text" id="contactModalBody"></div>
+    <div id="contactFormWrap">
+      <input class="admin-input" id="contactFormName" placeholder="Your name" style="margin-bottom:.6rem;"/>
+      <input class="admin-input" id="contactFormEmail" type="email" placeholder="Your email" style="margin-bottom:.6rem;"/>
+      <input class="admin-input" id="contactFormSubject" placeholder="Subject" style="margin-bottom:.6rem;"/>
+      <textarea class="admin-textarea" id="contactFormMessage" style="min-height:110px;margin-bottom:.6rem;" placeholder="What's on your mind?"></textarea>
+      <button class="footer-contact-email" id="contactFormSendBtn" onclick="submitContactForm()" style="width:100%;border:1px solid var(--gold);background:none;cursor:pointer;font-family:'Syne',sans-serif;">✉ Send Message</button>
+    </div>
+    <div id="contactFormStatus" style="font-size:.78rem;margin-top:.6rem;text-align:center;display:none;"></div>
+  </div>
+</div>
+
+<div id="accessibilityModal">
+  <button class="poster-modal-close" onclick="closeAccessibilityModal()">✕</button>
+  <div class="footer-modal-box">
+    <div class="tag">Legal</div>
+    <div class="title">Accessibility Statement</div>
+    <div class="body-text" id="accessibilityModalBody"></div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -510,12 +564,14 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         </div>
 
         <label class="admin-label">Hero photo</label>
-        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:1.2rem;">
+        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;">
           <img id="aHeroPreview" style="width:60px;height:76px;object-fit:cover;border-radius:6px;background:var(--surface2);"/>
           <label class="small-btn" for="aHeroFileInput" style="cursor:pointer;">Upload new</label>
           <input type="file" id="aHeroFileInput" accept="image/*" style="display:none;" onchange="adminUploadHero(event)"/>
           <button class="remove-door-btn" id="clearHeroPhotoBtn" style="display:none;flex-shrink:0;" onclick="clearHeroPhoto()" title="Remove photo">✕</button>
         </div>
+        <label class="admin-label">Or paste an image URL (recommended — hosted images don't count against your storage limit)</label>
+        <input class="admin-input" id="aHeroUrl" placeholder="https://res.cloudinary.com/.../your-photo.jpg" oninput="setHeroFromUrl(this.value)"/>
         <button class="admin-btn" onclick="saveFrontPage()">💾 Save Photo</button>
       </div>
 
@@ -605,8 +661,9 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <input class="admin-input" id="aRenewalStripeUrl" placeholder="https://buy.stripe.com/... (leave blank to reuse the link above)"/>
         <p style="color:var(--muted);font-size:.75rem;margin:-.4rem 0 .9rem;">Shown when someone's access has expired and they try to come back. Create a separate, cheaper Payment Link in Stripe for this — leave blank to just reuse the full-price link.</p>
 
-        <label class="admin-label">Disclaimer (shown before purchase)</label>
-        <textarea class="admin-textarea" id="aDisclaimer" placeholder="e.g. One-time charge. Instant access after checkout. No subscription."></textarea>
+        <label class="admin-label">Member Access Notice (shown before purchase, and again in grey at the top of the members area)</label>
+        <p style="color:var(--muted);font-size:.72rem;margin:-.4rem 0 .5rem;">First line becomes a bold title. Leave a blank line between paragraphs. Start a line with "* " to make it a bullet point.</p>
+        <textarea class="admin-textarea" id="aDisclaimer" style="min-height:220px;font-family:'Space Mono',monospace;font-size:.78rem;" placeholder="Member Access Notice title...&#10;&#10;A paragraph...&#10;&#10;* A bullet point&#10;* Another bullet point"></textarea>
         <button class="admin-btn" onclick="saveStripeSettings()">💾 Save Settings</button>
       </div>
 
@@ -674,17 +731,36 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <textarea class="admin-textarea" id="aChatPersona" style="min-height:110px;" oninput="saveChatSettings()"></textarea>
 
         <label class="admin-label" style="margin-top:.6rem;">Chat avatar photo (shown in the chat header, glows while she's talking)</label>
-        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:1rem;">
+        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;">
           <img id="aChatAvatarPreview" style="width:44px;height:44px;object-fit:cover;border-radius:50%;background:var(--surface2);"/>
           <label class="small-btn" for="aChatAvatarFileInput" style="cursor:pointer;">Upload</label>
           <input type="file" id="aChatAvatarFileInput" accept="image/*" style="display:none;" onchange="uploadChatAvatar(event)"/>
           <button class="remove-door-btn" id="clearChatAvatarBtn" style="display:none;" onclick="clearChatAvatar()" title="Remove photo">✕</button>
         </div>
+        <input class="admin-input" id="aChatAvatarUrl" placeholder="Or paste an image URL (recommended — no storage limit)" oninput="setChatAvatarFromUrl(this.value)" style="margin-bottom:1rem;"/>
 
         <label class="admin-label" style="margin-top:.6rem;">Message packs — one Stripe Payment Link per tier</label>
         <div id="chatTiersAdminList"></div>
 
         <button class="admin-btn" onclick="saveChatSettings()" style="margin-top:.6rem;">💾 Save Chat Settings</button>
+      </div>
+
+      <div class="admin-section">
+        <div class="admin-section-title">📞 Contact & Legal</div>
+        <p style="color:var(--muted);font-size:.78rem;margin-bottom:1rem;">Shown when visitors click "Contact" or "Accessibility Statement" in the footer.</p>
+
+        <label class="admin-label">Formspree endpoint (the contact form submits here)</label>
+        <input class="admin-input" id="aFormspreeEndpoint" placeholder="https://formspree.io/f/xxxxxxxx"/>
+        <p style="color:var(--muted);font-size:.72rem;margin:-.4rem 0 .9rem;">In Formspree: create a new form, set your real destination email there (never shown on the site), and paste the form's endpoint URL here. Visitors only ever talk to this address — your actual email stays private.</p>
+
+        <label class="admin-label">Contact message</label>
+        <textarea class="admin-textarea" id="aContactMessage" style="min-height:80px;" placeholder="A short note shown above the contact form..."></textarea>
+
+        <label class="admin-label">Accessibility Statement</label>
+        <p style="color:var(--muted);font-size:.72rem;margin:-.4rem 0 .5rem;">Leave a blank line between paragraphs. Start a line with "* " to make it a bullet point.</p>
+        <textarea class="admin-textarea" id="aAccessibilityStatement" style="min-height:200px;font-family:'Space Mono',monospace;font-size:.78rem;"></textarea>
+
+        <button class="admin-btn" onclick="saveContactAndLegal()" style="margin-top:.6rem;">💾 Save Contact & Legal</button>
       </div>
 
       <div class="admin-section">
@@ -760,7 +836,7 @@ let state = {
   "footerText": "Digital 1 Music. All rights reserved.",
   "stripeUrl": "",
   "renewalStripeUrl": "",
-  "disclaimer": "One-time purchase. Instant access after checkout. No subscription, no recurring charge.",
+  "disclaimer": "Bikini Walk — Member Access Notice\n\nBikini Walk features exclusive content from VYRA, a digital music artist.\n\nAll content available here is exclusive, copyrighted material intended for members only.\n\nBy purchasing or gaining access to Bikini Walk, you acknowledge and agree that:\n\n* All sales are final. No refunds will be issued once access has been granted.\n* Recording, downloading, copying, screen-capturing, or screen-recording any Bikini Walk content is prohibited — **this includes sending it to friends or family, posting it on social media, or uploading it to any other website or platform.**\n* Membership access is for the individual purchaser only and may not be shared with others.\n* Unauthorized use or distribution of Bikini Walk content may result in immediate termination of access without refund and may lead to further legal action.\n\nVYRA is a digitally created artist, and Bikini Walk is an exclusive digital entertainment experience created for VYRA members.\n\nBy continuing with your purchase and accessing Bikini Walk, you agree to these terms.",
   "welcomeVideo": {
     "url": "https://res.cloudinary.com/duy0bc0wj/video/upload/v1784094865/Vyra_Intro_bplrjz.mp4"
   },
@@ -869,7 +945,10 @@ let state = {
       "unlimitedDays": 30
     }
   ],
-  "chatAvatarImage": ""
+  "chatAvatarImage": "",
+  "contactMessage": "Questions about membership, billing, or anything else? Reach out and we'll get back to you as soon as possible.",
+  "accessibilityStatement": "Bikini Walk is committed to making this site accessible to as many people as possible, including people with disabilities.\n\nWe aim to follow the Web Content Accessibility Guidelines (WCAG) 2.1 at Level AA where practical, covering areas such as color contrast, keyboard navigation, and compatibility with assistive technologies.\n\nKnown limitations:\n\n* Some interactive elements, such as the live chat and door animations, may not be fully optimized for all screen readers.\n* Video and audio content may not include captions or transcripts in every case.\n\nWe are continuously working to improve accessibility across the site. If you encounter a barrier while using Bikini Walk, or have suggestions for improvement, please contact us using the information on our Contact page — we take this feedback seriously and will do our best to address it.",
+  "formspreeEndpoint": ""
 };
 
 // unlocked state is per-session (sessionStorage), same as the original VIP room —
@@ -925,7 +1004,9 @@ function grantAccess(email){
 // real shared version from the server, which is what every visitor
 // actually sees. If the network call fails for any reason, the local copy
 // already rendered is a safe fallback rather than a blank page.
-async function loadState(){
+// Loads whatever's cached in THIS browser instantly, synchronously — no
+// network wait. This is what the page renders with immediately on load.
+function loadLocalState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw){
@@ -936,23 +1017,39 @@ async function loadState(){
   }catch(e){ console.error('local load failed', e); }
 
   try{
-    const res = await fetch('/.netlify/functions/site-state');
-    if(res.ok){
-      const data = await res.json();
-      if(data.state){
-        state = Object.assign(state, data.state);
-        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, password: ADMIN_PASSWORD })); }catch(e){}
-      }
-    }
-  }catch(e){ console.error('shared load failed, using local/default content:', e); }
-
-  try{
     const savedEmail = sessionStorage.getItem('bw_email') || '';
     if(savedEmail && isAccessValid(savedEmail)){
       unlocked = true;
       unlockedEmail = savedEmail;
     }
   }catch(e){}
+}
+// Fetches the real, shared, server-side version in the background — this
+// is what makes an Admin change reach every visitor. Deliberately does NOT
+// block the initial page render; the front page already shows instantly
+// using loadLocalState() above, and this quietly updates it a moment later
+// if the shared content differs. A 6-second timeout keeps a bad connection
+// from ever leaving the page permanently stuck on stale data.
+async function syncSharedState(){
+  try{
+    const fetchPromise = fetch('/.netlify/functions/site-state');
+    const timeoutPromise = new Promise(function(_, reject){
+      setTimeout(function(){ reject(new Error('sync timed out')); }, 6000);
+    });
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    if(res.ok){
+      const data = await res.json();
+      if(data.state){
+        state = Object.assign(state, data.state);
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, password: ADMIN_PASSWORD })); }catch(e){}
+        // Re-render everything now that fresher content may have arrived.
+        renderFrontPage();
+        renderDoors();
+        renderChatWidget();
+        renderChatAvatar();
+      }
+    }
+  }catch(e){ console.error('shared sync failed, page already showing local/cached content:', e); }
 }
 // Saves locally (instant, for snappy admin UX) and to shared server storage
 // (what actually makes the change visible to real visitors). The shared
@@ -1004,6 +1101,49 @@ function showToast(msg){
 }
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Turns plain text (first line = title, blank-line-separated paragraphs,
+// lines starting with "* " = a bullet list) into properly formatted HTML —
+// used for the member access notice, shown both before purchase and at the
+// top of the members area, so both stay in sync from one source of text.
+// Converts **bold** markers into real <strong> tags. Must run AFTER
+// escapeHtml() on the same text — escaping never touches asterisks, so
+// this is safe, and it only ever inserts a fixed, known-safe tag.
+function applyInlineBold(escapedText){
+  return escapedText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+function renderMemberNotice(text, treatFirstLineAsTitle){
+  if(treatFirstLineAsTitle === undefined) treatFirstLineAsTitle = true;
+  if(!text || !text.trim()) return '';
+  const lines = text.split('\n');
+  let html = '';
+  let inList = false;
+  let firstLine = true;
+
+  lines.forEach(function(line){
+    const trimmed = line.trim();
+    if(!trimmed){
+      if(inList){ html += '</ul>'; inList = false; }
+      return;
+    }
+    if(trimmed.indexOf('* ') === 0){
+      if(!inList){ html += '<ul>'; inList = true; }
+      html += '<li>' + applyInlineBold(escapeHtml(trimmed.slice(2))) + '</li>';
+      firstLine = false;
+      return;
+    }
+    if(inList){ html += '</ul>'; inList = false; }
+    if(firstLine && treatFirstLineAsTitle){
+      html += '<div class="notice-title">' + applyInlineBold(escapeHtml(trimmed)) + '</div>';
+      firstLine = false;
+    }else{
+      html += '<p>' + applyInlineBold(escapeHtml(trimmed)) + '</p>';
+      firstLine = false;
+    }
+  });
+  if(inList) html += '</ul>';
+  return html;
 }
 
 // Auto-inserts Cloudinary's q_auto,f_auto (automatic quality + format) plus a
@@ -1134,7 +1274,7 @@ function enterTheDoors(){
   }
 }
 function openGateLogin(){
-  document.getElementById('gateDisclaimerDisplay').textContent = state.disclaimer;
+  document.getElementById('gateDisclaimerDisplay').innerHTML = renderMemberNotice(state.disclaimer);
   document.getElementById('gateDisclaimerDisplay').style.display = state.disclaimer ? 'block' : 'none';
   document.getElementById('gateLoginError').style.display = 'none';
   document.getElementById('gateLoginEmail').value = '';
@@ -1245,6 +1385,7 @@ function previewAsVisitor(){
 }
 function openContentRoom(){
   document.getElementById('contentOverlay').classList.add('active');
+  document.getElementById('contentNoticeText').innerHTML = renderMemberNotice(state.disclaimer);
   welcomeHasPlayed = false; // play welcome video again each time the room opens
   renderWelcomeBanner();
   renderDoors();
@@ -1346,7 +1487,7 @@ function renderDoorsInto(gridId, emptyId){
     const hasPosters = d.posters && d.posters.length > 0;
 
     const doorHtml = '<div class="door' + (hasContent ? '' : ' empty') + (hasThumb ? ' has-thumb' : '') + '" onclick="' + (hasContent ? "openDoor('" + d.id + "')" : '') + '">' +
-      '<div class="door-bg">' + (hasThumb ? '<img src="' + d.thumbnail + '"/>' : '<span>★</span>') + '</div>' +
+      '<div class="door-bg">' + (hasThumb ? '<img src="' + d.thumbnail + '" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>' : '<span>★</span>') + '</div>' +
       '<div class="door-panel">' +
         '<div class="door-star">★</div>' +
         '<div class="door-label-txt">' + escapeHtml(d.label) + '</div>' +
@@ -1447,7 +1588,7 @@ function openPosterModal(doorId){
   const grid = document.getElementById('posterModalGrid');
   grid.innerHTML = door.posters.map(function(p, i){
     const img = p.image
-      ? '<img src="' + p.image + '" alt=""/>'
+      ? '<img src="' + p.image + '" alt="" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>'
       : '<div style="width:56px;height:74px;flex-shrink:0;border-radius:5px;display:flex;align-items:center;justify-content:center;background:var(--surface3);color:var(--muted2);font-size:1.3rem;">★</div>';
     const label = escapeHtml(p.label || ('Design ' + (i + 1)));
     return '<div class="poster-item" onclick="openPosterEnlarge(\'' + doorId + '\',' + i + ')">' +
@@ -1485,6 +1626,81 @@ function openPosterEnlarge(doorId, index){
 }
 function closePosterEnlarge(){
   document.getElementById('posterEnlarge').classList.remove('active');
+}
+
+// ── Footer: Contact and Accessibility Statement modals ──
+function openContactModal(){
+  document.getElementById('contactModalBody').innerHTML = renderMemberNotice(state.contactMessage, false);
+  document.getElementById('contactFormName').value = '';
+  document.getElementById('contactFormEmail').value = '';
+  document.getElementById('contactFormSubject').value = '';
+  document.getElementById('contactFormMessage').value = '';
+  const status = document.getElementById('contactFormStatus');
+  status.style.display = 'none';
+  document.getElementById('contactFormWrap').style.display = 'block';
+  document.getElementById('contactModal').classList.add('active');
+}
+function closeContactModal(){
+  document.getElementById('contactModal').classList.remove('active');
+}
+// Submits to Formspree — the visitor's browser only ever talks to a public
+// Formspree form endpoint, never to your actual email address, which is
+// configured privately on Formspree's own dashboard, not anywhere in this
+// site's code.
+function submitContactForm(){
+  const name = document.getElementById('contactFormName').value.trim();
+  const email = document.getElementById('contactFormEmail').value.trim();
+  const subject = document.getElementById('contactFormSubject').value.trim();
+  const message = document.getElementById('contactFormMessage').value.trim();
+  const status = document.getElementById('contactFormStatus');
+  const sendBtn = document.getElementById('contactFormSendBtn');
+
+  status.style.display = 'block';
+  if(!name || !email || !message){
+    status.textContent = 'Please fill in your name, email, and a message.';
+    status.style.color = 'var(--accent)';
+    return;
+  }
+  if(!state.formspreeEndpoint){
+    status.textContent = 'Contact form isn\'t set up yet — please try again later.';
+    status.style.color = 'var(--accent)';
+    return;
+  }
+
+  status.textContent = 'Sending…';
+  status.style.color = 'var(--muted)';
+  sendBtn.disabled = true;
+
+  fetch(state.formspreeEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ name: name, email: email, subject: subject || '(no subject)', message: message }),
+  })
+    .then(function(res){
+      if(res.ok){
+        document.getElementById('contactFormWrap').style.display = 'none';
+        status.textContent = '✓ Message sent — thank you! We\'ll get back to you soon.';
+        status.style.color = 'var(--gold)';
+        status.style.display = 'block';
+      }else{
+        status.textContent = 'Something went wrong sending your message — please try again.';
+        status.style.color = 'var(--accent)';
+        sendBtn.disabled = false;
+      }
+    })
+    .catch(function(err){
+      console.error('contact form error:', err);
+      status.textContent = 'Connection error — please try again.';
+      status.style.color = 'var(--accent)';
+      sendBtn.disabled = false;
+    });
+}
+function openAccessibilityModal(){
+  document.getElementById('accessibilityModalBody').innerHTML = renderMemberNotice(state.accessibilityStatement, false);
+  document.getElementById('accessibilityModal').classList.add('active');
+}
+function closeAccessibilityModal(){
+  document.getElementById('accessibilityModal').classList.remove('active');
 }
 
 // ==========================================================
@@ -1558,6 +1774,9 @@ function openChatTierModal(){
       '<div class="price">' + escapeHtml(t.priceLabel || '') + '</div>' +
     '</button>';
   }).join('');
+  const noticeEl = document.getElementById('chatTierDisclaimerDisplay');
+  noticeEl.innerHTML = renderMemberNotice(state.disclaimer);
+  noticeEl.style.display = state.disclaimer ? 'block' : 'none';
   document.getElementById('chatTierModal').classList.add('active');
 }
 function closeChatTierModal(){
@@ -1637,12 +1856,35 @@ function openChatWindow(){
 function minimizeChatWindow(){
   document.getElementById('chatWindow').classList.remove('active');
 }
+// Converts a message into safe HTML with clickable links — used for chat
+// replies, which come from an AI model rather than admin-controlled text,
+// so everything is HTML-escaped FIRST to prevent any injected markup from
+// ever executing, and only THEN are recognized links added back in.
+// Supports both markdown-style [label](url) and bare https://... URLs.
+function linkifyText(text){
+  const escaped = escapeHtml(text);
+  const withMarkdownLinks = escaped.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    function(match, label, url){
+      return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
+    }
+  );
+  // Auto-link any remaining bare URLs, but skip content already inside an
+  // <a>...</a> tag from the step above so a URL never gets double-linked.
+  const parts = withMarkdownLinks.split(/(<a\b[^>]*>.*?<\/a>)/g);
+  return parts.map(function(part){
+    if(part.indexOf('<a ') === 0) return part;
+    return part.replace(/(https?:\/\/[^\s<]+)/g, function(url){
+      return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
+    });
+  }).join('');
+}
 function addChatMessage(role, text){
   const messagesEl = document.getElementById('chatMessages');
   if(!messagesEl) return;
   const div = document.createElement('div');
   div.className = 'chat-msg ' + role;
-  div.textContent = text;
+  div.innerHTML = linkifyText(text);
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
@@ -1696,6 +1938,14 @@ function sendChatMessage(){
       const reply = data.reply || "sorry, having a moment — try again?";
       addChatMessage('reply', reply);
       chatHistory.push({ role: 'assistant', content: reply });
+      // Cap what's actually stored — the full conversation is never needed
+      // for display or context (only the last 12 turns are ever sent to the
+      // AI anyway), so keeping everything forever just risks quietly
+      // filling up storage over weeks of real use.
+      const MAX_STORED_HISTORY = 40;
+      if(chatHistory.length > MAX_STORED_HISTORY){
+        chatHistory = chatHistory.slice(-MAX_STORED_HISTORY);
+      }
       try{ localStorage.setItem('bw_chat_history', JSON.stringify(chatHistory)); }catch(e){}
 
       // Save the updated fan memory for next time, if one came back.
@@ -1797,6 +2047,7 @@ async function adminLogin(){
 function renderAdminPanel(){
   document.getElementById('aHeroPreview').src = state.heroImage || '';
   document.getElementById('clearHeroPhotoBtn').style.display = state.heroImage ? 'flex' : 'none';
+  document.getElementById('aHeroUrl').value = (state.heroImage && state.heroImage.indexOf('data:') !== 0) ? state.heroImage : '';
   document.getElementById('aFooterText').value = state.footerText;
   document.getElementById('aStripeUrl').value = state.stripeUrl;
   document.getElementById('aRenewalStripeUrl').value = state.renewalStripeUrl;
@@ -1809,8 +2060,13 @@ function renderAdminPanel(){
   document.getElementById('aChatEnabled').checked = !!state.chatEnabled;
   document.getElementById('aChatPersona').value = state.chatPersonaPrompt || '';
   document.getElementById('aChatAvatarPreview').src = state.chatAvatarImage || '';
+  document.getElementById('aChatAvatarUrl').value = (state.chatAvatarImage && state.chatAvatarImage.indexOf('data:') !== 0) ? state.chatAvatarImage : '';
   document.getElementById('clearChatAvatarBtn').style.display = state.chatAvatarImage ? 'flex' : 'none';
   renderChatTiersAdmin();
+
+  document.getElementById('aFormspreeEndpoint').value = state.formspreeEndpoint || '';
+  document.getElementById('aContactMessage').value = state.contactMessage || '';
+  document.getElementById('aAccessibilityStatement').value = state.accessibilityStatement || '';
 
   ['tag','title','sub','link'].forEach(function(key){
     const cfg = state.heroElements[key];
@@ -2073,6 +2329,7 @@ function adminUploadHero(e){
   reader.onload = function(ev){
     state.heroImage = ev.target.result;
     document.getElementById('aHeroPreview').src = state.heroImage;
+    document.getElementById('aHeroUrl').value = ''; // clear URL field — a direct upload takes priority
     document.getElementById('clearHeroPhotoBtn').style.display = 'flex';
     saveState();
     renderFrontPage();
@@ -2081,9 +2338,23 @@ function adminUploadHero(e){
   };
   reader.readAsDataURL(file);
 }
+// Setting the hero photo by URL instead of uploading avoids the storage
+// bloat entirely — the image lives on Cloudinary (or wherever it's hosted),
+// this just points to it, so it never counts against the site's save limit.
+function setHeroFromUrl(url){
+  const trimmed = url.trim();
+  if(!trimmed) return;
+  state.heroImage = trimmed;
+  document.getElementById('aHeroPreview').src = trimmed;
+  document.getElementById('clearHeroPhotoBtn').style.display = 'flex';
+  saveState();
+  renderFrontPage();
+  updateHeroPreview();
+}
 function clearHeroPhoto(){
   state.heroImage = '';
   document.getElementById('aHeroPreview').src = '';
+  document.getElementById('aHeroUrl').value = '';
   document.getElementById('clearHeroPhotoBtn').style.display = 'none';
   saveState();
   renderFrontPage();
@@ -2133,6 +2404,13 @@ function saveChatSettings(){
   renderChatWidget();
   showToast('✓ Chat settings saved');
 }
+function saveContactAndLegal(){
+  state.formspreeEndpoint = document.getElementById('aFormspreeEndpoint').value.trim();
+  state.contactMessage = document.getElementById('aContactMessage').value;
+  state.accessibilityStatement = document.getElementById('aAccessibilityStatement').value;
+  saveState();
+  showToast('✓ Contact & Legal saved');
+}
 function uploadChatAvatar(e){
   const file = e.target.files[0];
   if(!file) return;
@@ -2140,6 +2418,7 @@ function uploadChatAvatar(e){
   reader.onload = function(ev){
     state.chatAvatarImage = ev.target.result;
     document.getElementById('aChatAvatarPreview').src = state.chatAvatarImage;
+    document.getElementById('aChatAvatarUrl').value = ''; // clear URL field — a direct upload takes priority
     document.getElementById('clearChatAvatarBtn').style.display = 'flex';
     saveState();
     renderChatWidget();
@@ -2147,9 +2426,21 @@ function uploadChatAvatar(e){
   };
   reader.readAsDataURL(file);
 }
+// Setting the avatar by URL instead of uploading avoids the storage bloat
+// entirely — same reasoning as the hero photo URL field.
+function setChatAvatarFromUrl(url){
+  const trimmed = url.trim();
+  if(!trimmed) return;
+  state.chatAvatarImage = trimmed;
+  document.getElementById('aChatAvatarPreview').src = trimmed;
+  document.getElementById('clearChatAvatarBtn').style.display = 'flex';
+  saveState();
+  renderChatWidget();
+}
 function clearChatAvatar(){
   state.chatAvatarImage = '';
   document.getElementById('aChatAvatarPreview').src = '';
+  document.getElementById('aChatAvatarUrl').value = '';
   document.getElementById('clearChatAvatarBtn').style.display = 'none';
   saveState();
   renderChatWidget();
@@ -2287,6 +2578,7 @@ function renderAdminPosterSection(d){
         '<img class="thumb" src="' + escapeHtml(p.image||'') + '" onerror="this.style.opacity=0"/>' +
         '<div class="grow">' +
           '<input value="' + escapeHtml(p.label||'') + '" placeholder="Design name (e.g. Woman in Red)" oninput="updatePoster(\'' + d.id + '\',' + i + ',\'label\',this.value)"/>' +
+          '<input value="' + escapeHtml(p.image||'') + '" placeholder="Photo URL (recommended — no storage limit)" oninput="updatePoster(\'' + d.id + '\',' + i + ',\'image\',this.value)"/>' +
           '<input value="' + escapeHtml(p.url||'') + '" placeholder="Printful product URL" oninput="updatePoster(\'' + d.id + '\',' + i + ',\'url\',this.value)"/>' +
         '</div>' +
         '<label class="small-btn" style="cursor:pointer;">Upload<input type="file" accept="image/*" style="display:none;" onchange="uploadPosterImage(\'' + d.id + '\',' + i + ', event)"/></label>' +
@@ -2297,7 +2589,7 @@ function renderAdminPosterSection(d){
       '<div class="admin-door-card-title" style="margin-bottom:.6rem;">🖼 Poster Link (' + posters.length + '/8)</div>' +
       '<label class="admin-label">Link text shown below this door</label>' +
       '<input class="admin-door-input" id="door-posterlink-' + d.id + '" value="' + escapeHtml(d.posterLinkText||'') + '" placeholder="Shop Posters →" oninput="liveDoorUpdate(\'' + d.id + '\')"/>' +
-      '<p style="color:var(--muted);font-size:.72rem;margin:.3rem 0 .7rem;">30×40 posters. Each design links straight to its own Printful product page.</p>' +
+      '<p style="color:var(--muted);font-size:.72rem;margin:.3rem 0 .7rem;">30×40 posters. Each design links straight to its own Printful product page. Paste a hosted photo URL (Cloudinary etc.) instead of uploading — uploaded photos count against your storage limit, hosted ones don\'t.</p>' +
       rows +
       (posters.length < 8 ? '<button class="small-btn" onclick="addPoster(\'' + d.id + '\')">➕ Add poster (' + posters.length + '/8)</button>' : '<p style="color:var(--muted2);font-size:.72rem;">Maximum of 8 posters reached.</p>') +
     '</div>';
@@ -2476,7 +2768,7 @@ function importBackup(e){
   reader.readAsText(file);
   e.target.value = '';
 }
-function changeAdminPassword(){
+async function changeAdminPassword(){
   const current = document.getElementById('cpCurrent').value;
   const next = document.getElementById('cpNew').value;
   const confirm_ = document.getElementById('cpConfirm').value;
@@ -2485,23 +2777,51 @@ function changeAdminPassword(){
   if(current !== ADMIN_PASSWORD){ err.textContent = 'Current password is incorrect.'; err.style.display='block'; return; }
   if(next.length < 6){ err.textContent = 'New password must be at least 6 characters.'; err.style.display='block'; return; }
   if(next !== confirm_){ err.textContent = 'Passwords do not match.'; err.style.display='block'; return; }
-  // Order matters: saveState() needs the OLD ADMIN_PASSWORD (still current
-  // at this point) to authorize the change server-side, with `next` sent
-  // as the new password to actually set. Only update the local variable
-  // after that request has been built.
-  saveState(next);
+
+  // Save locally right away (instant, for the local admin UI), but don't
+  // treat the password as actually changed until the SHARED save is
+  // confirmed — that's what every other device/visitor actually checks
+  // against, so a false "success" here would be actively misleading.
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, password: next }));
+  }catch(e){}
+
+  showToast('Saving new password…');
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'save',
+        password: ADMIN_PASSWORD,
+        newPassword: next,
+        state: state,
+      }),
+    });
+    if(!res.ok){
+      err.textContent = 'Password change failed to save (server error) — your old password still works. Try again.';
+      err.style.display = 'block';
+      return;
+    }
+  }catch(e){
+    err.textContent = 'Password change failed to save (connection error) — your old password still works. Try again.';
+    err.style.display = 'block';
+    return;
+  }
+
+  // Only NOW that the shared save is confirmed do we treat it as changed.
   ADMIN_PASSWORD = next;
   document.getElementById('cpCurrent').value = '';
   document.getElementById('cpNew').value = '';
   document.getElementById('cpConfirm').value = '';
-  showToast('✓ Password updated');
+  showToast('✓ Password updated and saved to the live site');
 }
 
 // ==========================================================
 //  INIT
 // ==========================================================
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadState();
+document.addEventListener('DOMContentLoaded', () => {
+  loadLocalState();
   renderFrontPage();
   document.getElementById('footerYear').textContent = new Date().getFullYear();
   checkStripeRedirect();
@@ -2512,10 +2832,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkChatStripeRedirect();
   resumeChatSessionIfActive();
 
+  // Sync with the real shared content in the background — the page above
+  // has already rendered instantly, this just quietly updates it if the
+  // server has something newer than what was cached locally.
+  syncSharedState();
+
   document.getElementById('gateLoginOverlay').addEventListener('mousedown', function(e){ if(e.target===this) closeGateLogin(); });
   document.getElementById('posterModal').addEventListener('mousedown', function(e){ if(e.target===this) closePosterModal(); });
   document.getElementById('posterEnlarge').addEventListener('mousedown', function(e){ if(e.target===this) closePosterEnlarge(); });
   document.getElementById('chatTierModal').addEventListener('mousedown', function(e){ if(e.target===this) closeChatTierModal(); });
+  document.getElementById('contactModal').addEventListener('mousedown', function(e){ if(e.target===this) closeContactModal(); });
+  document.getElementById('accessibilityModal').addEventListener('mousedown', function(e){ if(e.target===this) closeAccessibilityModal(); });
 
   // Hidden admin access: type "adm" anywhere on the page (not while typing in
   // a text field) to reveal the gold Admin link in the footer. Keeps it off
