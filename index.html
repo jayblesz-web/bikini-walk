@@ -106,6 +106,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .content-notice p{margin-bottom:.5rem;text-align:left;}
 .content-notice ul{margin:0 0 .5rem 1.1rem;padding:0;text-align:left;}
 .content-notice li{margin-bottom:.3rem;}
+.gate-disclaimer-display mark,.content-notice mark,.footer-modal-box mark{background:var(--gold);color:#000;padding:.05em .3em;border-radius:3px;font-weight:700;}
 
 /* ===== THE CONTENT ROOM (doors + welcome video) ===== */
 #contentOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.98);z-index:8000;overflow-y:auto;}
@@ -836,7 +837,7 @@ let state = {
   "footerText": "Digital 1 Music. All rights reserved.",
   "stripeUrl": "",
   "renewalStripeUrl": "",
-  "disclaimer": "Bikini Walk — Member Access Notice\n\nBikini Walk features exclusive content from VYRA, a digital music artist.\n\nAll content available here is exclusive, copyrighted material intended for members only.\n\nBy purchasing or gaining access to Bikini Walk, you acknowledge and agree that:\n\n* All sales are final. No refunds will be issued once access has been granted.\n* Recording, downloading, copying, screen-capturing, or screen-recording any Bikini Walk content is prohibited — **this includes sending it to friends or family, posting it on social media, or uploading it to any other website or platform.**\n* Membership access is for the individual purchaser only and may not be shared with others.\n* Unauthorized use or distribution of Bikini Walk content may result in immediate termination of access without refund and may lead to further legal action.\n\nVYRA is a digitally created artist, and Bikini Walk is an exclusive digital entertainment experience created for VYRA members.\n\nBy continuing with your purchase and accessing Bikini Walk, you agree to these terms.",
+  "disclaimer": "Bikini Walk — Member Access Notice\n\nBikini Walk features exclusive content from VYRA, a digital music artist.\n\nAll content available here is exclusive, copyrighted material intended for members only.\n\nBy purchasing or gaining access to Bikini Walk, you acknowledge and agree that:\n\n* All sales are final. No refunds will be issued once access has been granted.\n* Recording, downloading, copying, screen-capturing, or screen-recording any Bikini Walk content is prohibited — ==this includes sending it to friends or family, posting it on social media, or uploading it to any other website or platform.==\n* Membership access is for the individual purchaser only and may not be shared with others.\n* Unauthorized use or distribution of Bikini Walk content may result in immediate termination of access without refund and may lead to further legal action.\n\nVYRA is a digitally created artist, and Bikini Walk is an exclusive digital entertainment experience created for VYRA members.\n\nBy continuing with your purchase and accessing Bikini Walk, you agree to these terms.",
   "welcomeVideo": {
     "url": "https://res.cloudinary.com/duy0bc0wj/video/upload/v1784094865/Vyra_Intro_bplrjz.mp4"
   },
@@ -984,9 +985,10 @@ function daysRemaining(email){
   const remaining = state.accessDurationDays - (Date.now() - grantedAt) / (1000 * 60 * 60 * 24);
   return Math.max(0, Math.ceil(remaining));
 }
-// Adds an email to the approved list (if not already there) and starts its
-// access clock now, unless it already has one (re-granting doesn't reset an
-// existing countdown — only a fresh purchase/first-add does).
+// Adds an email to the approved list (if not already there) and starts a
+// fresh access clock. This only ever fires from a real completed purchase
+// (the main link or the renewal link), so it always resets the timer —
+// that's the whole point of buying again after access has expired.
 function grantAccess(email){
   const trimmed = (email || '').trim();
   const norm = trimmed.toLowerCase();
@@ -994,9 +996,7 @@ function grantAccess(email){
   if(state.emails.map(e => e.trim().toLowerCase()).indexOf(norm) === -1){
     state.emails.push(trimmed);
   }
-  if(!state.emailAccess[norm]){
-    state.emailAccess[norm] = Date.now();
-  }
+  state.emailAccess[norm] = Date.now();
 }
 
 // Loads content in two layers: an instant local copy from this browser's
@@ -1107,11 +1107,14 @@ function escapeHtml(s){
 // lines starting with "* " = a bullet list) into properly formatted HTML —
 // used for the member access notice, shown both before purchase and at the
 // top of the members area, so both stay in sync from one source of text.
-// Converts **bold** markers into real <strong> tags. Must run AFTER
-// escapeHtml() on the same text — escaping never touches asterisks, so
-// this is safe, and it only ever inserts a fixed, known-safe tag.
-function applyInlineBold(escapedText){
-  return escapedText.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+// Converts **bold** markers into <strong>, and ==highlight== markers into
+// <mark>. Must run AFTER escapeHtml() on the same text — escaping never
+// touches * or = characters, so this is safe, and it only ever inserts
+// fixed, known-safe tags.
+function applyInlineFormatting(escapedText){
+  return escapedText
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/==(.+?)==/g, '<mark>$1</mark>');
 }
 function renderMemberNotice(text, treatFirstLineAsTitle){
   if(treatFirstLineAsTitle === undefined) treatFirstLineAsTitle = true;
@@ -1129,16 +1132,16 @@ function renderMemberNotice(text, treatFirstLineAsTitle){
     }
     if(trimmed.indexOf('* ') === 0){
       if(!inList){ html += '<ul>'; inList = true; }
-      html += '<li>' + applyInlineBold(escapeHtml(trimmed.slice(2))) + '</li>';
+      html += '<li>' + applyInlineFormatting(escapeHtml(trimmed.slice(2))) + '</li>';
       firstLine = false;
       return;
     }
     if(inList){ html += '</ul>'; inList = false; }
     if(firstLine && treatFirstLineAsTitle){
-      html += '<div class="notice-title">' + applyInlineBold(escapeHtml(trimmed)) + '</div>';
+      html += '<div class="notice-title">' + applyInlineFormatting(escapeHtml(trimmed)) + '</div>';
       firstLine = false;
     }else{
-      html += '<p>' + applyInlineBold(escapeHtml(trimmed)) + '</p>';
+      html += '<p>' + applyInlineFormatting(escapeHtml(trimmed)) + '</p>';
       firstLine = false;
     }
   });
@@ -1539,16 +1542,31 @@ function openDoor(doorId){
 
   const vid = document.getElementById('doorStageVideo');
   if(vid){
-    // canplaythrough (rather than loadeddata) waits until the browser
-    // estimates it has enough buffered to play smoothly start-to-finish at
-    // the current download speed — this is what removes the choppy start.
-    vid.addEventListener('canplaythrough', function(){
+    let started = false;
+    function beginPlayback(){
+      if(started) return;
+      started = true;
       const status = document.getElementById('doorVideoStatus');
       if(status) status.remove();
       vid.style.display = 'block';
       const p = vid.play();
       if(p && p.catch) p.catch(function(){ /* browser blocked autoplay; controls are visible so they can press play */ });
+    }
+
+    // Ideal case: enough buffered to play the whole thing smoothly, no
+    // stutter at all. On a fast connection this is what fires.
+    vid.addEventListener('canplaythrough', beginPlayback, { once: true });
+
+    // Fallback for slower connections (like weak LTE): once the browser can
+    // start playing at all — even without a full-video guarantee — go
+    // ahead rather than making someone wait or fail outright. A small
+    // chance of an early stutter is far better than a dead end.
+    vid.addEventListener('canplay', function(){
+      setTimeout(function(){
+        if(!started) beginPlayback();
+      }, 4000); // give canplaythrough a real chance first before falling back
     }, { once: true });
+
     vid.addEventListener('error', function(){
       const status = document.getElementById('doorVideoStatus');
       if(status){
@@ -1557,15 +1575,16 @@ function openDoor(doorId){
     });
     vid.onended = function(){ closeDoorViewer(); };
 
-    // Fallback: if neither canplaythrough nor error fires within 8 seconds
-    // (e.g. a stalled/hanging network request), surface that instead of
-    // leaving the loading message up forever.
+    // True last resort: if NOTHING has fired after 20 seconds — not even
+    // the lighter canplay signal — the connection is genuinely stalled or
+    // the link itself is likely broken, not just slow.
     setTimeout(function(){
+      if(started) return;
       const status = document.getElementById('doorVideoStatus');
       if(status && status.textContent.indexOf('Loading') === 0){
-        status.innerHTML = '⚠ Video is taking too long to load.<br><span style="color:var(--muted2);font-size:.68rem;word-break:break-all;">' + escapeHtml(door.url) + '</span><br><span style="color:var(--muted2);font-size:.68rem;">This usually means the link isn\'t a direct video file, or the host is blocking access.</span>';
+        status.innerHTML = '⚠ Video is taking too long to load.<br><span style="color:var(--muted2);font-size:.68rem;word-break:break-all;">' + escapeHtml(door.url) + '</span><br><span style="color:var(--muted2);font-size:.68rem;">This can happen on a slow connection, or the link may not be a direct video file.</span>';
       }
-    }, 8000);
+    }, 20000);
   }
 }
 function closeDoorViewer(){
@@ -2005,12 +2024,19 @@ function playChatVoice(text){
 //  ADMIN
 // ==========================================================
 let adminMode = false;
-function openAdminGate(){
+async function openAdminGate(){
   document.getElementById('adminOverlay').classList.add('active');
   document.getElementById('adminLogin').style.display = adminMode ? 'none' : 'block';
   document.getElementById('adminPanel').style.display = adminMode ? 'block' : 'none';
   document.body.style.overflow = 'hidden'; // prevent the page underneath from scrolling
-  if(adminMode) renderAdminPanel();
+  if(adminMode){
+    // Re-fetch the live shared content right now, not whatever this tab
+    // happened to load with — closes most of the window where an admin
+    // session left open for a while could later overwrite a customer's
+    // purchase that came in while the tab was just sitting there.
+    await syncSharedState();
+    renderAdminPanel();
+  }
 }
 function closeAdmin(){
   document.getElementById('adminOverlay').classList.remove('active');
@@ -2039,6 +2065,7 @@ async function adminLogin(){
     adminMode = true;
     document.getElementById('adminLogin').style.display = 'none';
     document.getElementById('adminPanel').style.display = 'block';
+    await syncSharedState(); // same freshness guarantee as re-opening Admin above
     renderAdminPanel();
   }else{
     err.style.display = 'block';
@@ -2500,10 +2527,21 @@ function renderEmailExpiryList(){
       return escapeHtml(e) + ' — <span style="color:var(--muted2);">not yet granted</span>';
     }
     if(remaining <= 0){
-      return escapeHtml(e) + ' — <span style="color:var(--accent);">expired</span>';
+      return escapeHtml(e) + ' — <span style="color:var(--accent);">expired</span> ' +
+        '<button class="small-btn" style="padding:.15rem .5rem;font-size:.68rem;" onclick="renewEmailAccess(\'' + escapeHtml(e).replace(/'/g,"\\'") + '\')">🔄 Renew</button>';
     }
     return escapeHtml(e) + ' — <span style="color:var(--green);">' + remaining + ' day' + (remaining !== 1 ? 's' : '') + ' left</span>';
   }).join('<br>');
+}
+// Manually restarts one customer's access clock — for cases like a stuck
+// renewal (an old expiry timestamp that never got refreshed) or a support
+// request where you want to grant them extra time directly.
+function renewEmailAccess(email){
+  const norm = email.trim().toLowerCase();
+  state.emailAccess[norm] = Date.now();
+  saveState();
+  renderEmailExpiryList();
+  showToast('✓ ' + email + ' renewed for ' + state.accessDurationDays + ' more days');
 }
 
 // ── Welcome video — ported from saveVipWelcomeVideo() / previewVipWelcomeAdmin() ──
