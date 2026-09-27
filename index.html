@@ -185,6 +185,10 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 /* ══ PAID CHAT ══ */
 #chatWidget{display:none;position:fixed;bottom:1.4rem;right:1.4rem;z-index:9400;}
 #chatBubble{width:60px;height:60px;border-radius:50%;background:var(--gold);border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#000;}
+.chat-bubble-label{position:absolute;bottom:74px;right:0;background:var(--surface);border:1px solid var(--gold);color:var(--text);padding:.55rem .9rem;border-radius:12px;font-family:'Syne',sans-serif;font-weight:800;font-size:.82rem;white-space:nowrap;box-shadow:0 8px 20px rgba(0,0,0,.5);animation:chatLabelBob 2.4s ease-in-out infinite;cursor:pointer;}
+.chat-bubble-label::after{content:'';position:absolute;bottom:-6px;right:22px;width:12px;height:12px;background:var(--surface);border-right:1px solid var(--gold);border-bottom:1px solid var(--gold);transform:rotate(45deg);}
+.chat-bubble-label .close-x{position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:var(--gold);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:900;}
+@keyframes chatLabelBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
 #chatBubble:hover{transform:scale(1.05);}
 
 #chatTierModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:9900;align-items:center;justify-content:center;padding:1.5rem;}
@@ -435,6 +439,10 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 
 <!-- Paid chat: buy a message pack (or unlimited monthly), chat starts once payment goes through -->
 <div id="chatWidget">
+  <div class="chat-bubble-label" id="chatBubbleLabel" onclick="openChatTierModal()">
+    Come chat with me
+    <div class="close-x" onclick="event.stopPropagation();dismissChatBubbleLabel();">✕</div>
+  </div>
   <button id="chatBubble" onclick="openChatTierModal()" title="Chat">💬</button>
 </div>
 
@@ -470,7 +478,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 </div>
 
 <footer class="site-footer">
-  <span id="footerYear"></span> <span id="footerCustomText"></span>
+  <span id="footerYearTapTarget" onclick="handleFooterTripleTap()" style="cursor:default;"><span id="footerYear"></span> <span id="footerCustomText"></span></span>
   &nbsp;·&nbsp; <a onclick="openContactModal()">Contact</a>
   &nbsp;·&nbsp; <a onclick="openAccessibilityModal()">Accessibility Statement</a>
   <a id="adminFooterLink" onclick="openAdminGate()" style="display:none;color:var(--gold);font-weight:700;"> &nbsp;·&nbsp; Admin</a>
@@ -1741,6 +1749,25 @@ function renderChatWidget(){
   const widget = document.getElementById('chatWidget');
   if(widget) widget.style.display = state.chatEnabled ? 'block' : 'none';
   renderChatAvatar();
+  updateChatBubbleLabel();
+}
+// The "Come chat with me" callout is meant to introduce first-time
+// visitors to the chat feature — it hides itself permanently once someone
+// dismisses it, or once they've ever actually had chat credits (meaning
+// they already know what it is).
+function updateChatBubbleLabel(){
+  const label = document.getElementById('chatBubbleLabel');
+  if(!label) return;
+  loadChatCredits(); // ensure this reflects real stored credits, regardless of init call order
+  let dismissed = false;
+  try{ dismissed = localStorage.getItem('bw_chat_label_dismissed') === '1'; }catch(e){}
+  const everUsedChat = !!(chatCredits && (chatCredits.remaining > 0 || chatCredits.expiresAt));
+  label.style.display = (dismissed || everUsedChat) ? 'none' : 'block';
+}
+function dismissChatBubbleLabel(){
+  try{ localStorage.setItem('bw_chat_label_dismissed', '1'); }catch(e){}
+  const label = document.getElementById('chatBubbleLabel');
+  if(label) label.style.display = 'none';
 }
 function renderChatAvatar(){
   const img = document.getElementById('chatAvatarImg');
@@ -2882,20 +2909,39 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('contactModal').addEventListener('mousedown', function(e){ if(e.target===this) closeContactModal(); });
   document.getElementById('accessibilityModal').addEventListener('mousedown', function(e){ if(e.target===this) closeAccessibilityModal(); });
 
-  // Hidden admin access: type "adm" anywhere on the page (not while typing in
-  // a text field) to reveal the gold Admin link in the footer. Keeps it off
-  // customers' radar entirely until you actually want it.
+  // Hidden admin access — two ways in, since the keyboard trick below has
+  // no equivalent on a phone (no keyboard exists without a focused text
+  // field to type into first).
+  function revealAdminLink(){
+    const link = document.getElementById('adminFooterLink');
+    if(link) link.style.display = 'inline';
+    showToast('✓ Admin link unlocked');
+  }
+
+  // Desktop: type "adm" anywhere on the page (not while typing in a real
+  // text field).
   let adminKeyBuffer = '';
   document.addEventListener('keydown', function(e){
     const tag = (e.target && e.target.tagName) || '';
     if(tag === 'INPUT' || tag === 'TEXTAREA') return; // don't hijack typing in real fields
     adminKeyBuffer = (adminKeyBuffer + e.key).slice(-3).toLowerCase();
-    if(adminKeyBuffer === 'adm'){
-      const link = document.getElementById('adminFooterLink');
-      if(link) link.style.display = 'inline';
-      showToast('✓ Admin link unlocked');
-    }
+    if(adminKeyBuffer === 'adm') revealAdminLink();
   });
+
+  // Mobile (and desktop): tap the footer's year/copyright text 3 times
+  // within 1.5 seconds.
+  let footerTapCount = 0;
+  let footerTapTimer = null;
+  window.handleFooterTripleTap = function(){
+    footerTapCount++;
+    if(footerTapTimer) clearTimeout(footerTapTimer);
+    footerTapTimer = setTimeout(function(){ footerTapCount = 0; }, 1500);
+    if(footerTapCount >= 3){
+      footerTapCount = 0;
+      clearTimeout(footerTapTimer);
+      revealAdminLink();
+    }
+  };
 });
 </script>
 </body>
