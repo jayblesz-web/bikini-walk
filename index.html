@@ -180,6 +180,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .door.paywalled .door-bg img{filter:brightness(.72);}
 .door-move-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);width:28px;height:26px;border-radius:6px;cursor:pointer;font-size:.75rem;display:flex;align-items:center;justify-content:center;}
 .door-move-btn:disabled{opacity:.3;cursor:default;}
+.door-pos-select{background:var(--surface);border:1px solid var(--gold);color:var(--gold);border-radius:6px;padding:.15rem .3rem;font-weight:700;font-size:.8rem;cursor:pointer;}
 .admin-preview-toggle{display:flex;gap:.4rem;margin-bottom:.7rem;flex-wrap:wrap;}
 .footer-modal-box{max-width:480px;width:100%;}
 .footer-modal-box .tag{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem;text-align:center;}
@@ -3082,7 +3083,11 @@ function renderAdminDoors(){
         '<div style="display:flex;gap:.4rem;align-items:center;">' +
           '<button class="door-move-btn" title="Move up" ' + (index === 0 ? 'disabled' : '') + ' onclick="moveDoor(\'' + d.id + '\',-1)">▲</button>' +
           '<button class="door-move-btn" title="Move down" ' + (index === lastIndex ? 'disabled' : '') + ' onclick="moveDoor(\'' + d.id + '\',1)">▼</button>' +
-          '<div class="admin-door-card-title">Position ' + (index + 1) + ' · ' + escapeHtml(d.label) + '</div>' +
+          '<label style="display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted);">Position ' +
+            '<select class="door-pos-select" title="Move this door to a position" onchange="moveDoorTo(\'' + d.id + '\', this.value)">' +
+              state.doors.map(function(_, i){ return '<option value="' + (i + 1) + '"' + (i === index ? ' selected' : '') + '>' + (i + 1) + '</option>'; }).join('') +
+            '</select></label>' +
+          '<div class="admin-door-card-title">' + escapeHtml(d.label) + '</div>' +
         '</div>' +
         '<div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">' +
           '<button class="type-btn' + (d.type==='video'?' active':'') + '" onclick="setDoorType(\'' + d.id + '\',\'video\')">🎬 Video</button>' +
@@ -3226,6 +3231,21 @@ function moveDoor(doorId, dir){
   state.doors.splice(j, 0, moved);
   renderAdminDoors();
   saveState();
+  renderDoors();
+}
+// Jumps a door straight to a position (e.g. 23 → 15); the others shift to make room.
+function moveDoorTo(doorId, position){
+  const i = state.doors.findIndex(d => d.id === doorId);
+  const j = Math.max(0, Math.min(state.doors.length - 1, (parseInt(position, 10) || 1) - 1));
+  if(i < 0 || i === j) return;
+  const moved = state.doors.splice(i, 1)[0];
+  state.doors.splice(j, 0, moved);
+  renderAdminDoors();
+  saveState();
+  renderDoors();
+  showToast('✓ Moved to position ' + (j + 1));
+  const card = document.getElementById('door-label-' + doorId);
+  if(card) card.closest('.admin-door-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 // Gives every door the name "Door N" and plaque number N in its current order.
 function renumberDoors(){
