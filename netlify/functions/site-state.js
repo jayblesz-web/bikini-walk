@@ -30,7 +30,13 @@
 //     Generates a one-time token, emails a verification link via Resend.
 //   { action: 'verify-magic-link', token } → { success, email, startedAt } | { error }
 //     Confirms the click, and starts (or reads, if one already exists)
-//     that email's 72-hour trial clock.
+//     that email's 72-hour trial clock. Also records the email as a free lead.
+//   { action: 'start-trial', email } → { success, email, startedAt }
+//     Only works when Admin has "Require email verification" switched OFF.
+//   { action: 'activate-paid', email } → { success }  (after Stripe redirect)
+//   { action: 'test-email', password, email } → { success, config, detail?, hint? }
+//
+// 'save' and 'test-email' require the admin password.
 
 const { getStore } = require('@netlify/blobs');
 
@@ -80,8 +86,55 @@ async function sendMagicLinkEmail(email, link){
   });
   if(!res.ok){
     const errText = await res.text();
-    throw new Error('Resend error ' + res.status + ': ' + errText);
+    let detail = errText;
+    try{ const j = JSON.parse(errText); detail = j.message || j.error || errText; }catch(e){}
+    const err = new Error('Resend error ' + res.status + ': ' + detail);
+    err.detail = detail;
+    err.hint = explainResendError(res.status, detail);
+    throw err;
   }
+}
+
+// Turns Resend's raw error into a plain-English fix for the site owner.
+function explainResendError(status, detail){
+  const d = (detail || '').toLowerCase();
+  if(d.includes('testing emails') || d.includes('own email')){
+    return 'Resend is still in test mode: the default sender (onboarding@resend.dev) can only email YOUR Resend account address. Verify your domain at resend.com/domains, then set RESEND_FROM_ADDRESS in Netlify to something like "Bikini Walk <hello@yourdomain.com>" and redeploy.';
+  }
+  if(d.includes('domain') && (d.includes('not verified') || d.includes('verify'))){
+    return 'The domain in RESEND_FROM_ADDRESS is not verified in Resend yet. Finish the DNS records at resend.com/domains (status must say Verified), then redeploy.';
+  }
+  if(status === 401 || d.includes('api key')){
+    return 'RESEND_API_KEY is wrong or was revoked. Create a new key at resend.com/api-keys, paste it into Netlify environment variables, and redeploy.';
+  }
+  if(d.includes('from')){
+    return 'RESEND_FROM_ADDRESS is badly formatted. Use: Bikini Walk <hello@yourdomain.com>';
+  }
+  return 'Resend rejected the email. The exact reason is shown above.';
+}
+
+// Adds a verified free lead to the shared state without touching anything else.
+async function recordFreeLead(store, email){
+  try{
+    const stored = (await store.get(BLOB_KEY, { type: 'json' })) || { state: {}, password: DEFAULT_PASSWORD };
+    stored.state = stored.state || {};
+    const list = Array.isArray(stored.state.freeEmails) ? stored.state.freeEmails : [];
+    if(list.map(e => (e || '').toLowerCase()).indexOf(email) === -1){
+      list.push(email);
+      stored.state.freeEmails = list;
+      await store.setJSON(BLOB_KEY, stored);
+    }
+  }catch(e){ console.error('recordFreeLead failed:', e); }
+}
+
+async function startTrialFor(store, email){
+  let trial = await store.get('trial:' + email, { type: 'json' });
+  if(!trial){
+    trial = { startedAt: Date.now() };
+    await store.setJSON('trial:' + email, trial);
+  }
+  await recordFreeLead(store, email);
+  return trial;
 }
 
 exports.handler = async function (event) {
@@ -151,7 +204,12 @@ exports.handler = async function (event) {
         };
       } catch (err) {
         console.error('send-magic-link error:', err);
-        return { statusCode: 500, body: JSON.stringify({ error: 'Failed to send email' }) };
+        const notConfigured = /RESEND_API_KEY not configured/.test(err.message || '');
+        return { statusCode: 500, body: JSON.stringify({
+          error: "We couldn't send the email right now.",
+          detail: notConfigured ? 'RESEND_API_KEY is not set in Netlify.' : (err.detail || err.message || ''),
+          hint: notConfigured ? 'Add RESEND_API_KEY in Netlify → Site configuration → Environment variables, then redeploy.' : (err.hint || ''),
+        }) };
       }
     }
 
@@ -177,11 +235,7 @@ exports.handler = async function (event) {
         // Only start the clock if this email has never had one before —
         // this is the actual fix for "clear cookies, get a fresh trial":
         // the trial is tied to the email on the server, not the browser.
-        let trial = await store.get('trial:' + email, { type: 'json' });
-        if (!trial) {
-          trial = { startedAt: Date.now() };
-          await store.setJSON('trial:' + email, trial);
-        }
+        const trial = await startTrialFor(store, email);
 
         return {
           statusCode: 200,
@@ -201,6 +255,82 @@ exports.handler = async function (event) {
       stored = null;
     }
     const currentPassword = (stored && stored.password) || DEFAULT_PASSWORD;
+    const siteState = (stored && stored.state) || {};
+
+    // Free preview WITHOUT the email link — only allowed when the owner has
+    // switched "Require email verification" OFF in Admin. Checked here on the
+    // server, so a visitor can't skip verification while it's switched on.
+    if (body.action === 'start-trial') {
+      if (siteState.requireEmailVerification !== false) {
+        return { statusCode: 403, body: JSON.stringify({ error: 'Email verification is required.' }) };
+      }
+      const email = (body.email || '').trim().toLowerCase();
+      if (!email || !email.includes('@')) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid email' }) };
+      }
+      try {
+        const trial = await startTrialFor(store, email);
+        return {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ success: true, email: email, startedAt: trial.startedAt }),
+        };
+      } catch (err) {
+        console.error('start-trial error:', err);
+        return { statusCode: 500, body: JSON.stringify({ error: 'Failed to start preview' }) };
+      }
+    }
+
+    // Called after Stripe sends the buyer back (?bw=success). Adds just this
+    // one email to the approved list instead of letting the browser rewrite
+    // the whole site. (Still trusts the redirect — see HANDOFF.md, Stripe webhook.)
+    if (body.action === 'activate-paid') {
+      const email = (body.email || '').trim().toLowerCase();
+      if (!email || !email.includes('@')) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid email' }) };
+      }
+      try {
+        const next = stored || { state: {}, password: currentPassword };
+        next.state = next.state || {};
+        const emails = Array.isArray(next.state.emails) ? next.state.emails : [];
+        if (emails.map(e => (e || '').toLowerCase()).indexOf(email) === -1) emails.push(email);
+        next.state.emails = emails;
+        next.state.emailAccess = next.state.emailAccess || {};
+        next.state.emailAccess[email] = Date.now();
+        await store.setJSON(BLOB_KEY, next);
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: true }) };
+      } catch (err) {
+        console.error('activate-paid error:', err);
+        return { statusCode: 500, body: JSON.stringify({ error: 'Failed to activate' }) };
+      }
+    }
+
+    // Admin-only: send a real test email and report exactly what Resend said.
+    if (body.action === 'test-email') {
+      if (body.password !== currentPassword) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Not authorized' }) };
+      }
+      const to = (body.email || '').trim().toLowerCase();
+      const config = {
+        hasApiKey: !!process.env.RESEND_API_KEY,
+        fromAddress: process.env.RESEND_FROM_ADDRESS || '(not set — using onboarding@resend.dev, test mode only)',
+      };
+      if (!to || !to.includes('@')) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Enter an email to send the test to', config }) };
+      }
+      try {
+        const host = event.headers['x-forwarded-host'] || event.headers.host;
+        await sendMagicLinkEmail(to, 'https://' + host + '/');
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: true, config }) };
+      } catch (err) {
+        const notConfigured = /RESEND_API_KEY not configured/.test(err.message || '');
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          success: false, config,
+          detail: notConfigured ? 'RESEND_API_KEY is not set in Netlify.' : (err.detail || err.message),
+          hint: notConfigured ? 'Add RESEND_API_KEY in Netlify → Site configuration → Environment variables, then redeploy.' : (err.hint || ''),
+        }) };
+      }
+    }
 
     if (body.action === 'login') {
       const success = body.password === currentPassword;
@@ -215,9 +345,26 @@ exports.handler = async function (event) {
       if (!body.state) {
         return { statusCode: 400, body: JSON.stringify({ error: 'Missing state' }) };
       }
+      // Only the owner can change the site. (Before this check, anyone who
+      // knew the URL could overwrite every door, link, and setting.)
+      if (body.password !== currentPassword) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Not authorized' }) };
+      }
       const newPassword = body.newPassword || currentPassword;
+      // Free leads are added by the server as people verify, so an Admin tab
+      // that loaded earlier mustn't wipe the ones that arrived since.
+      const incoming = body.state;
+      const oldLeads = Array.isArray(siteState.freeEmails) ? siteState.freeEmails : [];
+      const newLeads = Array.isArray(incoming.freeEmails) ? incoming.freeEmails : [];
+      const seen = {};
+      incoming.freeEmails = oldLeads.concat(newLeads).filter(function (e) {
+        const k = (e || '').toLowerCase();
+        if (!k || seen[k]) return false;
+        seen[k] = true;
+        return true;
+      });
       try {
-        await store.setJSON(BLOB_KEY, { state: body.state, password: newPassword });
+        await store.setJSON(BLOB_KEY, { state: incoming, password: newPassword });
         return {
           statusCode: 200,
           headers: { 'Content-Type': 'application/json' },
