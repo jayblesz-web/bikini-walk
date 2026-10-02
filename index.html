@@ -1564,9 +1564,7 @@ async function checkGateEmail(){
     if(!res.ok){
       const data = await res.json().catch(() => ({}));
       console.error('send-magic-link failed:', data);
-      error.innerHTML = escapeHtml(data.error || "We couldn't send the email right now.") +
-        (data.detail ? '<br><span style="opacity:.75;font-size:.85em;">Reason: ' + escapeHtml(data.detail) + '</span>' : '') +
-        '<br><span style="opacity:.75;font-size:.85em;">Try again in a minute.</span>';
+      error.textContent = data.error || "We couldn't send your link right now. Please try again later.";
       error.style.display = 'block';
       sendBtn.disabled = false;
       sendBtn.textContent = idleLabel;
