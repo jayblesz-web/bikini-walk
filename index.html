@@ -585,7 +585,8 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
           <div class="admin-section-title" style="margin-bottom:.3rem;">★ Bikini Walk Access</div>
           <div style="color:var(--muted);font-size:.8rem;">Manage exclusive content for paying members</div>
         </div>
-        <button class="admin-btn-gold" onclick="previewAsVisitor()">👁 Preview as Customer</button>
+        <button class="admin-btn-gold" onclick="previewAsVisitor('free')">👁 Preview as free visitor</button>
+        <button class="admin-btn-gold" onclick="previewAsVisitor('paid')">👁 Preview as paying member</button>
       </div>
 
       <div class="admin-section">
@@ -1082,8 +1083,11 @@ let trialCountdownInterval = null;
 
 // True once someone has actually paid (or an admin is previewing as if they
 // had) — this is what unlocks every door, not just the free one(s).
+let adminPreviewAs = 'paid'; // which visitor type "Preview as…" is showing
+let savedTrialBeforePreview = null;
 function isPaidUnlocked(){
-  return contentPreviewFromAdmin || (unlocked && isAccessValid(unlockedEmail));
+  if(contentPreviewFromAdmin) return adminPreviewAs === 'paid';
+  return unlocked && isAccessValid(unlockedEmail);
 }
 // True only while a verified free visitor is still within their 72-hour
 // window. Once this goes false, free doors lock exactly like all the rest.
@@ -1695,13 +1699,19 @@ function previewHero(){
 // ==========================================================
 //  CONTENT ROOM  (ported: openArtistVipRoom → showArtistVipContent)
 // ==========================================================
-function previewAsVisitor(){
-  // ported from previewVipRoomAsCustomer() — skips the purchase/email gate entirely
-  // so you can see exactly what an unlocked member sees.
+// Opens the room as either a free visitor on day 1 of their preview (free
+// door open, padlocks on the rest, countdown showing) or a paying member.
+function previewAsVisitor(kind){
+  adminPreviewAs = kind === 'free' ? 'free' : 'paid';
   contentPreviewFromAdmin = true;
+  if(adminPreviewAs === 'free'){
+    savedTrialBeforePreview = { email: freeEnteredEmail, startedAt: trialStartedAt };
+    freeEnteredEmail = 'admin-preview';
+    trialStartedAt = Date.now();
+  }
   closeAdmin();
   openContentRoom();
-  showToast('👁 Previewing as a customer would see it');
+  showToast(adminPreviewAs === 'free' ? '👁 Previewing as a free visitor' : '👁 Previewing as a paying member');
 }
 function openContentRoom(){
   document.getElementById('contentOverlay').classList.add('active');
@@ -1716,6 +1726,11 @@ function closeContentRoom(){
   if(trialCountdownInterval){ clearInterval(trialCountdownInterval); trialCountdownInterval = null; }
   if(contentPreviewFromAdmin){
     contentPreviewFromAdmin = false;
+    if(savedTrialBeforePreview){
+      freeEnteredEmail = savedTrialBeforePreview.email;
+      trialStartedAt = savedTrialBeforePreview.startedAt;
+      savedTrialBeforePreview = null;
+    }
     openAdminGate();
   }
 }
@@ -3243,7 +3258,16 @@ async function sendTestEmail(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'test-email', password: ADMIN_PASSWORD, email: to }),
     });
-    const data = await res.json().catch(() => ({}));
+    const raw = await res.text();
+    let data = {};
+    try{ data = JSON.parse(raw); }catch(e){}
+    if(!data.config && !data.error){
+      // Not an answer from the new site-state function at all.
+      out.innerHTML = '<b style="color:var(--accent);">✕ The email function didn\'t answer properly (status ' + res.status + ').</b><br>' +
+        (res.status === 404 ? 'The site-state function isn\'t deployed. Check GitHub → netlify/functions has site-state.js, then check the latest Netlify deploy succeeded.'
+          : 'The site-state function crashed or is an old version. Check Netlify → Logs → Functions → site-state for the error, and make sure GitHub has the new site-state.js (search the file for "test-email").');
+      return;
+    }
     const cfg = data.config || {};
     const cfgHtml = '<br><span style="color:var(--muted);">API key set: ' + (cfg.hasApiKey ? 'yes' : '<b style="color:var(--accent);">no</b>') +
       '<br>Sending from: ' + escapeHtml(cfg.fromAddress || '?') + '</span>';
