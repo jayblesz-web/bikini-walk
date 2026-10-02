@@ -204,11 +204,11 @@ exports.handler = async function (event) {
         };
       } catch (err) {
         console.error('send-magic-link error:', err);
-        const notConfigured = /RESEND_API_KEY not configured/.test(err.message || '');
+        // The real reason goes to the Netlify function log and the Admin
+        // "Send test email" box only — never to visitors (it can contain the
+        // owner's personal email address).
         return { statusCode: 500, body: JSON.stringify({
-          error: "We couldn't send the email right now.",
-          detail: notConfigured ? 'RESEND_API_KEY is not set in Netlify.' : (err.detail || err.message || ''),
-          hint: notConfigured ? 'Add RESEND_API_KEY in Netlify → Site configuration → Environment variables, then redeploy.' : (err.hint || ''),
+          error: "We couldn't send your link right now. Please try again later.",
         }) };
       }
     }
