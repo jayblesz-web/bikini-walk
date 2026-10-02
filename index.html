@@ -168,6 +168,19 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 #contactModal,#accessibilityModal,#unlockCTAModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:9999;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;}
 #contactModal.active,#accessibilityModal.active,#unlockCTAModal.active{display:flex;}
 .door-lock-overlay{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.8);border:1px solid var(--gold);color:var(--gold);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;z-index:4;}
+/* Square "photo layer" sized exactly like the cover-cropped door photo, so the
+   plaque number and padlock sit on the same spot of the photo at any tile size. */
+.door-photo-layer{position:absolute;top:0;left:50%;height:100%;aspect-ratio:1/1;transform:translateX(-50%);z-index:2;pointer-events:none;container-type:size;}
+.door-plaque{position:absolute;left:77%;top:44.4%;width:6.9%;height:15.6%;background:#000;border-radius:999px;}
+.door-plaque span{position:absolute;left:0;right:0;top:68%;transform:translateY(-50%);text-align:center;color:#e9e6df;font-family:'Syne',sans-serif;font-weight:700;font-size:3.3cqh;letter-spacing:.02em;line-height:1;white-space:nowrap;}
+.door-padlock{position:absolute;left:50.5%;top:52%;width:15%;transform:translate(-50%,-50%);filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));}
+.door-padlock-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
+.door-padlock-center svg{width:34%;max-width:70px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));}
+.door-free-badge{position:absolute;top:8px;left:8px;z-index:4;background:var(--gold);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:.62rem;padding:.25rem .5rem;border-radius:999px;}
+.door.paywalled .door-bg img{filter:brightness(.72);}
+.door-move-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);width:28px;height:26px;border-radius:6px;cursor:pointer;font-size:.75rem;display:flex;align-items:center;justify-content:center;}
+.door-move-btn:disabled{opacity:.3;cursor:default;}
+.admin-preview-toggle{display:flex;gap:.4rem;margin-bottom:.7rem;flex-wrap:wrap;}
 .footer-modal-box{max-width:480px;width:100%;}
 .footer-modal-box .tag{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem;text-align:center;}
 .footer-modal-box .title{font-size:1.3rem;font-weight:900;text-align:center;margin-bottom:1.2rem;}
@@ -373,7 +386,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <div id="gateFormStep">
       <div class="star">★</div>
       <h3>Enter Bikini Walk</h3>
-      <p>Enter your email — we'll send you a link to verify it and start your free 72-hour preview. Door 1 unlocks the moment you click it.</p>
+      <p id="gateIntroText">Enter your email — we'll send you a link to verify it and start your free 72-hour preview. Door 1 unlocks the moment you click it.</p>
       <input id="gateLoginEmail" class="gate-login-input" type="email" placeholder="your@email.com"/>
       <button class="gate-login-btn" id="gateSendLinkBtn" onclick="checkGateEmail()">Send My Link →</button>
       <div class="gate-login-error" id="gateLoginError"></div>
@@ -741,6 +754,21 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <button class="admin-btn-outline" onclick="copyFreeEmails()">📋 Copy All</button>
       </div>
 
+      <div class="admin-section">
+        <div class="admin-section-title">✉ Free preview sign-up</div>
+        <label style="display:flex;align-items:center;gap:.4rem;margin:.2rem 0 .6rem;cursor:pointer;">
+          <input type="checkbox" id="aRequireVerify" onchange="toggleRequireVerify(this.checked)" style="width:16px;height:16px;accent-color:var(--gold);"/>
+          <span style="font-size:.82rem;font-weight:700;">Require email verification (send a link before the free door opens)</span>
+        </label>
+        <p style="color:var(--muted);font-size:.78rem;margin-bottom:.9rem;">Turn this off while the email isn't sending: visitors type their email and the free door opens immediately. The 72-hour limit still applies per email. Turn it back on once the test email below arrives.</p>
+        <label class="admin-label">Send a test email to</label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+          <input class="admin-input" id="aTestEmailTo" type="email" placeholder="you@example.com" style="flex:1;min-width:180px;margin:0;"/>
+          <button class="admin-btn" onclick="sendTestEmail()">Send test email</button>
+        </div>
+        <div id="aTestEmailResult" style="display:none;margin-top:.7rem;font-size:.78rem;line-height:1.6;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.8rem;"></div>
+      </div>
+
       <!-- Ported from original: Welcome Video -->
       <div class="admin-section welcome-video-box">
         <div class="admin-section-title" style="color:var(--gold);">🎬 Welcome Video</div>
@@ -770,6 +798,15 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <p style="color:var(--muted);font-size:.72rem;margin-bottom:1rem;">Applies to every door at once. Any door with its own thumbnail set keeps that one instead.</p>
 
         <div class="hero-preview-caption">Live preview — what members will see</div>
+        <div class="admin-preview-toggle">
+          <button class="type-btn active" data-preview-mode="member" onclick="setAdminDoorPreviewMode('member')">🔓 Member view</button>
+          <button class="type-btn" data-preview-mode="free" onclick="setAdminDoorPreviewMode('free')">🔒 Free visitor view</button>
+          <button class="type-btn" onclick="renumberDoors()">🔢 Renumber 1, 2, 3… in this order</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:.4rem;margin:0 0 .8rem;cursor:pointer;">
+          <input type="checkbox" id="aShowDoorPlaque" onchange="toggleDoorPlaque(this.checked)" style="width:16px;height:16px;accent-color:var(--gold);"/>
+          <span style="font-size:.78rem;color:var(--muted);">Show each door's number on the house-number plaque and the padlock on the door (for the default door photo)</span>
+        </label>
         <div class="doors-preview-frame">
           <div class="doors-grid" id="adminDoorsPreview"></div>
           <div id="adminDoorsPreviewEmpty" style="display:none;text-align:center;color:var(--muted2);padding:2rem 0;font-family:'Space Mono',monospace;font-size:.75rem;">No content yet — add a door below.</div>
@@ -1017,7 +1054,9 @@ let state = {
   "accessibilityStatement": "Bikini Walk is committed to making this site accessible to as many people as possible, including people with disabilities.\n\nWe aim to follow the Web Content Accessibility Guidelines (WCAG) 2.1 at Level AA where practical, covering areas such as color contrast, keyboard navigation, and compatibility with assistive technologies.\n\nKnown limitations:\n\n* Some interactive elements, such as the live chat and door animations, may not be fully optimized for all screen readers.\n* Video and audio content may not include captions or transcripts in every case.\n\nWe are continuously working to improve accessibility across the site. If you encounter a barrier while using Bikini Walk, or have suggestions for improvement, please contact us using the information on our Contact page — we take this feedback seriously and will do our best to address it.",
   "formspreeEndpoint": "",
   "defaultDoorThumbnail": "",
-  "freeEmails": []
+  "freeEmails": [],
+  "requireEmailVerification": true,
+  "showDoorPlaque": true
 };
 
 // unlocked state is per-session (sessionStorage), same as the original VIP room —
@@ -1154,6 +1193,11 @@ function saveState(newPasswordOverride){
   try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, password: passwordToStore }));
   }catch(e){ console.error('local save failed', e); }
+
+  // Visitors never write to the live site — only the logged-in owner does.
+  // (Visitor-side changes like free leads and paid activations go through
+  // their own server actions instead.)
+  if(!adminMode) return;
 
   fetch('/.netlify/functions/site-state', {
     method: 'POST',
@@ -1374,7 +1418,17 @@ async function enterTheDoors(){
   try{ storedFreeEmail = localStorage.getItem('bw_free_email') || ''; }catch(e){}
   if(storedFreeEmail){
     freeEnteredEmail = storedFreeEmail;
-    await refreshTrialStatus(storedFreeEmail);
+    const known = await refreshTrialStatus(storedFreeEmail);
+    if(known === false){
+      // Server has no preview on record for this email (e.g. the email link
+      // was never clicked). Forget it and ask again instead of showing a room
+      // where even the free door is locked.
+      try{ localStorage.removeItem('bw_free_email'); localStorage.removeItem('bw_trial_started'); }catch(e){}
+      freeEnteredEmail = '';
+      trialStartedAt = 0;
+      openGateLogin();
+      return;
+    }
     openContentRoom();
     return;
   }
@@ -1383,18 +1437,43 @@ async function enterTheDoors(){
 // Pulls the real trial start time for an email from the server. Called on
 // every return visit so the countdown (and whether doors are still free)
 // always reflects the truth, not a locally-editable cached value.
+// Returns true (server has a trial), false (server says none), or null
+// (couldn't reach the server — falls back to the last value seen on this device).
 async function refreshTrialStatus(email){
   try{
     const res = await fetch('/.netlify/functions/site-state?checkTrial=' + encodeURIComponent(email));
     if(res.ok){
       const data = await res.json();
       trialStartedAt = data.startedAt || 0;
+      try{ localStorage.setItem('bw_trial_started', String(trialStartedAt)); }catch(e){}
+      return !!data.startedAt;
     }
   }catch(e){
     console.error('trial status check failed, using last known value:', e);
   }
+  try{ trialStartedAt = Number(localStorage.getItem('bw_trial_started')) || trialStartedAt; }catch(e){}
+  return null;
+}
+// Saves a started preview on this device and opens the room.
+function beginFreePreview(email, startedAt){
+  try{
+    localStorage.setItem('bw_free_email', email);
+    localStorage.setItem('bw_trial_started', String(startedAt));
+  }catch(e){}
+  freeEnteredEmail = email;
+  trialStartedAt = startedAt;
+  if(state.freeEmails.map(e => e.toLowerCase()).indexOf(email) === -1) state.freeEmails.push(email); // local display only
+  closeGateLogin();
+  openContentRoom();
 }
 function openGateLogin(){
+  const verify = state.requireEmailVerification !== false;
+  const firstFree = state.doors.find(d => d.isFree);
+  const freeName = firstFree ? firstFree.label : 'Your free door';
+  document.getElementById('gateIntroText').textContent = verify
+    ? "Enter your email and we'll send you a link to start your free 72-hour preview. " + freeName + " unlocks the moment you click it."
+    : 'Enter your email to start your free 72-hour preview. ' + freeName + ' unlocks right away.';
+  document.getElementById('gateSendLinkBtn').textContent = verify ? 'Send my link' : 'Start my free preview';
   document.getElementById('gateDisclaimerDisplay').innerHTML = renderMemberNotice(state.disclaimer);
   document.getElementById('gateDisclaimerDisplay').style.display = state.disclaimer ? 'block' : 'none';
   document.getElementById('gateLoginError').style.display = 'none';
@@ -1435,10 +1514,41 @@ async function checkGateEmail(){
     return;
   }
 
+  error.style.display = 'none';
+  const verify = state.requireEmailVerification !== false;
+  const idleLabel = verify ? 'Send my link' : 'Start my free preview';
+
+  // Owner switched verification off in Admin: start the preview right away.
+  // The server double-checks that setting, so this can't be forced.
+  if(!verify){
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Starting…';
+    try{
+      const res = await fetch('/.netlify/functions/site-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start-trial', email: email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok || !data.success){
+        error.textContent = data.error || 'Could not start your preview. Try again.';
+        error.style.display = 'block';
+      }else{
+        beginFreePreview(data.email, data.startedAt);
+        showToast('✓ Your free preview has started');
+      }
+    }catch(e){
+      error.textContent = 'Connection error. Check your connection and try again.';
+      error.style.display = 'block';
+    }
+    sendBtn.disabled = false;
+    sendBtn.textContent = idleLabel;
+    return;
+  }
+
   // Everyone else: send a real verification email. The free trial only
   // actually starts once they click that link — this is what makes the
   // captured email a REAL, confirmed one rather than whatever was typed.
-  error.style.display = 'none';
   sendBtn.disabled = true;
   sendBtn.textContent = 'Sending…';
   try{
@@ -1449,10 +1559,13 @@ async function checkGateEmail(){
     });
     if(!res.ok){
       const data = await res.json().catch(() => ({}));
-      error.textContent = data.error || 'Could not send the link — please try again.';
+      console.error('send-magic-link failed:', data);
+      error.innerHTML = escapeHtml(data.error || "We couldn't send the email right now.") +
+        (data.detail ? '<br><span style="opacity:.75;font-size:.85em;">Reason: ' + escapeHtml(data.detail) + '</span>' : '') +
+        '<br><span style="opacity:.75;font-size:.85em;">Try again in a minute.</span>';
       error.style.display = 'block';
       sendBtn.disabled = false;
-      sendBtn.textContent = 'Send My Link →';
+      sendBtn.textContent = idleLabel;
       return;
     }
     document.getElementById('gateSentToEmail').textContent = rawEmail;
@@ -1460,11 +1573,11 @@ async function checkGateEmail(){
     document.getElementById('gateCheckEmailStep').style.display = 'block';
   }catch(e){
     console.error('send-magic-link failed:', e);
-    error.textContent = 'Connection error — please try again.';
+    error.textContent = 'Connection error. Check your connection and try again.';
     error.style.display = 'block';
   }
   sendBtn.disabled = false;
-  sendBtn.textContent = 'Send My Link →';
+  sendBtn.textContent = idleLabel;
 }
 function goToStripe(kind){
   // ported from openVipSubscribe() — appends success_url so Stripe redirects back here
@@ -1524,18 +1637,9 @@ async function checkMagicLinkRedirect(){
 
     // Verified — this is a real, confirmed email. Capture it for the
     // owner's lead list, remember it on this device, and start the room.
-    const email = data.email;
-    const rawFromList = state.freeEmails.find(e => e.trim().toLowerCase() === email);
-    if(!rawFromList){
-      state.freeEmails.push(email);
-      saveState();
-    }
-    try{ localStorage.setItem('bw_free_email', email); }catch(e){}
-    freeEnteredEmail = email;
-    trialStartedAt = data.startedAt;
-
+    // (The server already added them to the owner's lead list.)
+    beginFreePreview(data.email, data.startedAt);
     showToast('✓ Email verified — your free preview has started');
-    openContentRoom();
   }catch(e){
     console.error('magic link verification failed:', e);
     showToast('⚠ Connection error verifying your link — please try again.');
@@ -1555,7 +1659,12 @@ function activateEmail(){
   error.style.display = 'none';
 
   grantAccess(email);
-  saveState();
+  saveState(); // local copy on this device
+  fetch('/.netlify/functions/site-state', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'activate-paid', email: email }),
+  }).catch(function(err){ console.error('activate-paid failed:', err); });
 
   setUnlocked(email);
   success.style.display = 'block';
@@ -1711,14 +1820,31 @@ function replayWelcome(){
 }
 
 // ── DOORS — ported from vipRenderDoors / vipOpenDoor / vipCloseDoorViewer ──
+// Admin preview can show either what a paying member sees or what a free
+// visitor sees (locks on), toggled above the preview grid.
+let adminDoorPreviewMode = 'member'; // 'member' | 'free'
+function setAdminDoorPreviewMode(mode){
+  adminDoorPreviewMode = mode;
+  document.querySelectorAll('[data-preview-mode]').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-preview-mode') === mode);
+  });
+  renderDoors();
+}
 function renderDoors(){
   renderDoorsInto('doorsGrid', 'contentEmpty');
-  // Always full access here — this is the admin's own editing preview, not
-  // a real visitor's view (that's what "Preview as Customer" is for), so
-  // lock icons here would just get in the way of configuring doors.
-  renderDoorsInto('adminDoorsPreview', 'adminDoorsPreviewEmpty', true);
+  renderDoorsInto('adminDoorsPreview', 'adminDoorsPreviewEmpty', adminDoorPreviewMode === 'member' ? 'paid' : 'free');
 }
-function renderDoorsInto(gridId, emptyId, forceFullAccess){
+// Number shown on the door's plaque: the door's own number if set, else its position.
+function doorNumber(d, index){
+  const n = (d.number != null && String(d.number).trim()) ? String(d.number).trim() : String(index + 1);
+  return n.slice(0, 4);
+}
+const PADLOCK_SVG = '<svg viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+  '<path d="M10 22V14a10 10 0 0 1 20 0v8" fill="none" stroke="#f5c842" stroke-width="5" stroke-linecap="round"/>' +
+  '<rect x="3" y="21" width="34" height="29" rx="5" fill="#f5c842"/>' +
+  '<circle cx="20" cy="33" r="4" fill="#2a2410"/><rect x="18.2" y="34" width="3.6" height="9" rx="1.5" fill="#2a2410"/>' +
+  '</svg>';
+function renderDoorsInto(gridId, emptyId, previewAs){
   const grid = document.getElementById(gridId);
   const emptyMsg = document.getElementById(emptyId);
   if(!grid) return;
@@ -1734,31 +1860,48 @@ function renderDoorsInto(gridId, emptyId, forceFullAccess){
   }
   if(emptyMsg) emptyMsg.style.display = 'none';
 
-  const isPaid = forceFullAccess || isPaidUnlocked();
+  const isPaid = previewAs === 'paid' || (!previewAs && isPaidUnlocked());
+  const trialOn = previewAs === 'free' ? true : isTrialActive();
 
-  grid.innerHTML = state.doors.map(function(d){
+  grid.innerHTML = state.doors.map(function(d, index){
     const hasContent = d.url && d.url.trim();
     // Visible and openable if it's free, or the visitor has actually paid.
     // Otherwise — if it has real content — it stays visible but locked,
     // which is the whole point: show exactly what's being missed rather
     // than hiding it.
-    const canOpen = hasContent && (isPaid || (d.isFree && isTrialActive()));
+    const canOpen = hasContent && (isPaid || (d.isFree && trialOn));
     const isPaywalled = hasContent && !canOpen;
-    const thumbSrc = (d.thumbnail && d.thumbnail.trim()) || (state.defaultDoorThumbnail && state.defaultDoorThumbnail.trim());
+    const isLocked = !canOpen; // paywalled OR no content yet — either way it shows a lock
+    const customThumb = d.thumbnail && d.thumbnail.trim();
+    const thumbSrc = customThumb || (state.defaultDoorThumbnail && state.defaultDoorThumbnail.trim());
     const hasThumb = !!thumbSrc;
     const hasPosters = d.posters && d.posters.length > 0;
+    // The plaque number + on-door padlock line up with the default door
+    // photo, so they're drawn there. Doors with their own custom photo get a
+    // centered padlock instead.
+    const onDefaultPhoto = hasThumb && !customThumb && state.showDoorPlaque !== false;
 
     let clickAction = '';
     if(canOpen) clickAction = "openDoor('" + d.id + "')";
-    else if(isPaywalled) clickAction = "showUnlockCTA()";
+    else if(isPaywalled && d.isFree && !previewAs && !isPaid && !(freeEnteredEmail && trialStartedAt)) clickAction = "startPreviewFromDoor()";
+    else if(isPaywalled && !previewAs) clickAction = "showUnlockCTA()";
 
-    const doorClasses = 'door' + (hasContent ? '' : ' empty') + (hasThumb ? ' has-thumb' : '') + (isPaywalled ? ' paywalled' : '');
+    const doorClasses = 'door' + (hasContent ? '' : ' empty') + (hasThumb ? ' has-thumb' : '') + (isLocked ? ' paywalled' : '');
 
-    const doorHtml = '<div class="' + doorClasses + '" onclick="' + clickAction + '">' +
+    const layer = onDefaultPhoto
+      ? '<div class="door-photo-layer">' +
+          '<div class="door-plaque"><span>' + escapeHtml(doorNumber(d, index)) + '</span></div>' +
+          (isLocked ? '<div class="door-padlock">' + PADLOCK_SVG + '</div>' : '') +
+        '</div>'
+      : (isLocked ? '<div class="door-padlock-center">' + PADLOCK_SVG + '</div>' : '');
+
+    const freeBadge = (d.isFree && canOpen && !isPaid) ? '<div class="door-free-badge">Free preview</div>' : '';
+
+    const doorHtml = '<div class="' + doorClasses + '" onclick="' + clickAction + '" aria-label="' + escapeHtml(d.label) + (isLocked ? ' (locked)' : '') + '">' +
       '<div class="door-bg">' + (hasThumb ? '<img src="' + thumbSrc + '" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>' : '<span>★</span>') + '</div>' +
-      (isPaywalled ? '<div class="door-lock-overlay">🔒</div>' : '') +
+      layer + freeBadge +
       '<div class="door-panel">' +
-        '<div class="door-star">' + (isPaywalled ? '🔒' : '★') + '</div>' +
+        (onDefaultPhoto || isLocked ? '' : '<div class="door-star">★</div>') +
         '<div class="door-label-txt">' + escapeHtml(d.label) + '</div>' +
         (!hasContent && d.lockedMessage && d.lockedMessage.trim() ? '<div class="door-locked-msg">' + escapeHtml(d.lockedMessage) + '</div>' : '') +
       '</div>' +
@@ -1792,6 +1935,10 @@ function showUnlockCTA(){
   }
   document.getElementById('unlockCTAModal').classList.add('active');
 }
+function startPreviewFromDoor(){
+  closeContentRoom();
+  openGateLogin();
+}
 function closeUnlockCTA(){
   document.getElementById('unlockCTAModal').classList.remove('active');
 }
@@ -1802,7 +1949,8 @@ function openDoor(doorId){
   // the grid only wires up this onclick for doors that are actually
   // openable, but guard it anyway rather than trust the UI alone.
   if(!isPaidUnlocked() && !(door.isFree && isTrialActive())){
-    showUnlockCTA();
+    if(door.isFree && !(freeEnteredEmail && trialStartedAt)) startPreviewFromDoor();
+    else showUnlockCTA();
     return;
   }
   lastOpenedDoorWasFree = !isPaidUnlocked(); // paid visitors never see the upgrade prompt on close
@@ -2408,6 +2556,8 @@ function renderAdminPanel(){
   document.getElementById('aAccessDays').value = state.accessDurationDays;
   renderEmailExpiryList();
   renderFreeEmailsList();
+  document.getElementById('aRequireVerify').checked = state.requireEmailVerification !== false;
+  document.getElementById('aShowDoorPlaque').checked = state.showDoorPlaque !== false;
   document.getElementById('aWelcomeUrl').value = state.welcomeVideo.url || '';
   document.getElementById('aChatEnabled').checked = !!state.chatEnabled;
   document.getElementById('aChatPersona').value = state.chatPersonaPrompt || '';
@@ -2912,11 +3062,16 @@ function renderAdminDoors(){
   document.getElementById('aDefaultDoorThumbUrl').value = state.defaultDoorThumbnail || '';
   document.getElementById('aDefaultDoorThumbPreview').src = state.defaultDoorThumbnail || '';
   document.getElementById('clearDefaultDoorThumbBtn').style.display = state.defaultDoorThumbnail ? 'flex' : 'none';
-  list.innerHTML = state.doors.map(function(d){
+  const lastIndex = state.doors.length - 1;
+  list.innerHTML = state.doors.map(function(d, index){
     return '<div class="admin-door-card">' +
       '<div class="admin-door-card-head">' +
-        '<div class="admin-door-card-title">★ ' + escapeHtml(d.label) + '</div>' +
         '<div style="display:flex;gap:.4rem;align-items:center;">' +
+          '<button class="door-move-btn" title="Move up" ' + (index === 0 ? 'disabled' : '') + ' onclick="moveDoor(\'' + d.id + '\',-1)">▲</button>' +
+          '<button class="door-move-btn" title="Move down" ' + (index === lastIndex ? 'disabled' : '') + ' onclick="moveDoor(\'' + d.id + '\',1)">▼</button>' +
+          '<div class="admin-door-card-title">Position ' + (index + 1) + ' · ' + escapeHtml(d.label) + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">' +
           '<button class="type-btn' + (d.type==='video'?' active':'') + '" onclick="setDoorType(\'' + d.id + '\',\'video\')">🎬 Video</button>' +
           '<button class="type-btn' + (d.type==='image'?' active':'') + '" onclick="setDoorType(\'' + d.id + '\',\'image\')">🖼 Image</button>' +
           '<button class="type-btn' + (d.type==='message'?' active':'') + '" onclick="setDoorType(\'' + d.id + '\',\'message\')">💬 Message</button>' +
@@ -2927,6 +3082,12 @@ function renderAdminDoors(){
         '<input type="checkbox" ' + (d.isFree ? 'checked' : '') + ' onchange="toggleDoorFree(\'' + d.id + '\', this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--gold);"/>' +
         '<span style="font-size:.78rem;color:var(--gold);font-weight:700;">🔓 Free preview door (no payment required to open this one)</span>' +
       '</label>' +
+      '<div style="display:flex;gap:.5rem;">' +
+        '<div style="flex:1;"><label class="admin-label">Door name</label>' +
+          '<input class="admin-door-input" id="door-label-' + d.id + '" value="' + escapeHtml(d.label||'') + '" placeholder="Door 1" oninput="liveDoorUpdate(\'' + d.id + '\')"/></div>' +
+        '<div style="width:110px;"><label class="admin-label">Plaque number</label>' +
+          '<input class="admin-door-input" id="door-number-' + d.id + '" maxlength="4" value="' + escapeHtml(d.number != null ? String(d.number) : '') + '" placeholder="' + (index + 1) + '" oninput="liveDoorUpdate(\'' + d.id + '\')"/></div>' +
+      '</div>' +
       (d.type === 'message'
         ? '<textarea class="admin-door-input" id="door-url-' + d.id + '" placeholder="Type the message that appears behind this door..." style="min-height:60px;" oninput="liveDoorUpdate(\'' + d.id + '\')">' + escapeHtml(d.url||'') + '</textarea>'
         : '<input class="admin-door-input" id="door-url-' + d.id + '" value="' + escapeHtml(d.url||'') + '" placeholder="' + (d.type==='video' ? 'Video URL (.mp4)' : 'Image URL') + '" oninput="liveDoorUpdate(\'' + d.id + '\')"/>'
@@ -2978,7 +3139,7 @@ function renderAdminPosterSection(d){
 }
 function addDoor(){
   const nextNum = state.doors.length + 1;
-  state.doors.push({ id: 'door-' + Date.now(), label: 'Door ' + nextNum, type: 'video', url: '', thumbnail: '', lockedMessage: '', posterLinkText: '', posters: [], isFree: false });
+  state.doors.push({ id: 'door-' + Date.now(), label: 'Door ' + nextNum, number: String(nextNum), type: 'video', url: '', thumbnail: '', lockedMessage: '', posterLinkText: '', posters: [], isFree: false });
   renderAdminDoors();
   saveState();
   showToast('✓ Door ' + nextNum + ' added');
@@ -3008,6 +3169,7 @@ function saveDoor(doorId){
   const thumbEl = document.getElementById('door-thumb-' + doorId);
   const lockedEl = document.getElementById('door-locked-' + doorId);
   const posterLinkEl = document.getElementById('door-posterlink-' + doorId);
+  readDoorNameFields(door);
   if(urlEl){
     door.url = optimizeCloudinaryUrl(urlEl.value.trim());
     urlEl.value = door.url;
@@ -3031,8 +3193,71 @@ function liveDoorUpdate(doorId){
   if(thumbEl) door.thumbnail = thumbEl.value.trim();
   if(lockedEl) door.lockedMessage = lockedEl.value;
   if(posterLinkEl) door.posterLinkText = posterLinkEl.value;
+  readDoorNameFields(door);
   saveState();
   renderDoors();
+}
+function readDoorNameFields(door){
+  const labelEl = document.getElementById('door-label-' + door.id);
+  const numberEl = document.getElementById('door-number-' + door.id);
+  if(labelEl) door.label = labelEl.value.trim() || door.label;
+  if(numberEl) door.number = numberEl.value.trim();
+}
+// Reorders doors. Typed-but-unsaved edits are kept because liveDoorUpdate
+// already writes them into state as you type.
+function moveDoor(doorId, dir){
+  const i = state.doors.findIndex(d => d.id === doorId);
+  const j = i + dir;
+  if(i < 0 || j < 0 || j >= state.doors.length) return;
+  const moved = state.doors.splice(i, 1)[0];
+  state.doors.splice(j, 0, moved);
+  renderAdminDoors();
+  saveState();
+}
+// Gives every door the name "Door N" and plaque number N in its current order.
+function renumberDoors(){
+  if(!confirm('Rename every door to "Door 1", "Door 2"… in the current order, and set the plaque numbers to match?')) return;
+  state.doors.forEach(function(d, i){ d.label = 'Door ' + (i + 1); d.number = String(i + 1); });
+  renderAdminDoors();
+  saveState();
+  showToast('✓ Doors renumbered');
+}
+function toggleDoorPlaque(on){
+  state.showDoorPlaque = !!on;
+  saveState();
+  renderDoors();
+}
+function toggleRequireVerify(on){
+  state.requireEmailVerification = !!on;
+  saveState();
+  showToast(on ? '✓ Email verification on' : '✓ Verification off: free door opens right after email entry');
+}
+async function sendTestEmail(){
+  const to = document.getElementById('aTestEmailTo').value.trim();
+  const out = document.getElementById('aTestEmailResult');
+  out.style.display = 'block';
+  out.textContent = 'Sending…';
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'test-email', password: ADMIN_PASSWORD, email: to }),
+    });
+    const data = await res.json().catch(() => ({}));
+    const cfg = data.config || {};
+    const cfgHtml = '<br><span style="color:var(--muted);">API key set: ' + (cfg.hasApiKey ? 'yes' : '<b style="color:var(--accent);">no</b>') +
+      '<br>Sending from: ' + escapeHtml(cfg.fromAddress || '?') + '</span>';
+    if(data.success){
+      out.innerHTML = '<b style="color:#4ade80;">✓ Sent.</b> Check that inbox (and spam). If it arrives, switch verification back on.' + cfgHtml;
+    }else{
+      out.innerHTML = '<b style="color:var(--accent);">✕ Not sent.</b>' +
+        (data.error ? '<br>' + escapeHtml(data.error) : '') +
+        (data.detail ? '<br>Reason from Resend: ' + escapeHtml(data.detail) : '') +
+        (data.hint ? '<br><b>Fix:</b> ' + escapeHtml(data.hint) : '') + cfgHtml;
+    }
+  }catch(e){
+    out.textContent = 'Connection error reaching the site-state function. Check Netlify → Logs → Functions → site-state.';
+  }
 }
 function toggleDoorFree(doorId, isFree){
   const door = state.doors.find(d => d.id === doorId);
