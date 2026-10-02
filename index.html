@@ -117,6 +117,10 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .content-head .title{font-size:1.8rem;font-weight:900;}
 .content-close{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.5rem 1rem;border-radius:8px;cursor:pointer;}
 .content-notice{text-align:center;font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:.04em;line-height:1.6;margin-top:2rem;padding:.6rem 1rem;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.2);}
+#trialCountdownBanner{display:none;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:linear-gradient(135deg,rgba(245,200,66,.15),rgba(245,200,66,.05));border:1px solid var(--gold);border-radius:10px;padding:.8rem 1rem;margin-bottom:1.2rem;}
+.trial-countdown-text{font-family:'Space Mono',monospace;font-size:.82rem;color:var(--text);}
+.trial-countdown-text #trialCountdownClock{color:var(--gold);font-weight:800;}
+.trial-unlock-btn{background:var(--gold);color:#000;border:none;padding:.55rem 1.1rem;border-radius:8px;font-weight:800;font-size:.78rem;cursor:pointer;font-family:'Syne',sans-serif;white-space:nowrap;}
 
 /* welcome video banner */
 #welcomeBanner{margin:0 auto 1.8rem;max-width:460px;border-radius:14px;overflow:hidden;border:1px solid var(--gold);cursor:pointer;background:var(--surface2);}
@@ -132,6 +136,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .door-cell{display:flex;flex-direction:column;gap:.5rem;}
 .door{position:relative;aspect-ratio:3/4;border-radius:12px;overflow:hidden;cursor:pointer;background:#000;border:1px solid var(--border);}
 .door.empty{opacity:.75;cursor:default;}
+.door.paywalled{cursor:pointer;}
 .door-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;font-size:1.5rem;z-index:1;color:var(--muted2);}
 .door-bg img{width:100%;height:100%;object-fit:cover;display:block;}
 .door-panel{position:absolute;inset:0;background:linear-gradient(150deg,#2a2410,#15120a 60%,#0a0805);border:1px solid var(--gold);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;z-index:3;padding:.6rem;text-align:center;}
@@ -160,8 +165,9 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .poster-modal-close{position:fixed;top:max(1rem,env(safe-area-inset-top));right:1rem;background:rgba(40,40,48,.95);border:1px solid var(--gold);color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.1rem;cursor:pointer;z-index:10000;display:flex;align-items:center;justify-content:center;}
 
 /* footer modals — Contact and Accessibility Statement share this pattern */
-#contactModal,#accessibilityModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:9999;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;}
-#contactModal.active,#accessibilityModal.active{display:flex;}
+#contactModal,#accessibilityModal,#unlockCTAModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:9999;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;}
+#contactModal.active,#accessibilityModal.active,#unlockCTAModal.active{display:flex;}
+.door-lock-overlay{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.8);border:1px solid var(--gold);color:var(--gold);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;z-index:4;}
 .footer-modal-box{max-width:480px;width:100%;}
 .footer-modal-box .tag{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem;text-align:center;}
 .footer-modal-box .title{font-size:1.3rem;font-weight:900;text-align:center;margin-bottom:1.2rem;}
@@ -364,16 +370,41 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 <!-- ============ ENTRY GATE — ported from original artistVipLoginGate + subscribe button ============ -->
 <div id="gateLoginOverlay">
   <div class="gate-login-box">
-    <div class="star">★</div>
-    <h3>Enter at Your Own Risk</h3>
-    <p>Already purchased? Enter the email you used at checkout.</p>
-    <input id="gateLoginEmail" class="gate-login-input" type="email" placeholder="your@email.com"/>
-    <button class="gate-login-btn" onclick="checkGateEmail()">Enter</button>
-    <div class="gate-login-error" id="gateLoginError">Email not found. Please check your email or <a href="#" onclick="goToStripe();return false;">purchase access here</a>.</div>
-    <div class="gate-purchase-divider">— or —</div>
-    <button class="gate-purchase-btn" onclick="goToStripe()">★ Purchase Access</button>
-    <button class="gate-login-cancel" onclick="closeGateLogin()">Cancel</button>
-    <div class="gate-disclaimer-display" id="gateDisclaimerDisplay"></div>
+    <div id="gateFormStep">
+      <div class="star">★</div>
+      <h3>Enter Bikini Walk</h3>
+      <p>Enter your email — we'll send you a link to verify it and start your free 72-hour preview. Door 1 unlocks the moment you click it.</p>
+      <input id="gateLoginEmail" class="gate-login-input" type="email" placeholder="your@email.com"/>
+      <button class="gate-login-btn" id="gateSendLinkBtn" onclick="checkGateEmail()">Send My Link →</button>
+      <div class="gate-login-error" id="gateLoginError"></div>
+      <button class="gate-login-cancel" onclick="closeGateLogin()">Cancel</button>
+      <div class="gate-disclaimer-display" id="gateDisclaimerDisplay"></div>
+    </div>
+    <div id="gateCheckEmailStep" style="display:none;text-align:center;">
+      <div class="star">✉</div>
+      <h3>Check your email</h3>
+      <p>We sent a link to <strong id="gateSentToEmail"></strong>. Click it to verify your email and start your free preview — Door 1 unlocks immediately.</p>
+      <button class="gate-login-cancel" onclick="closeGateLogin()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shown after closing a free door, or tapping a locked door, to prompt the upgrade.
+     Text swaps depending on whether the trial is still running or has expired. -->
+<div id="unlockCTAModal">
+  <button class="poster-modal-close" onclick="closeUnlockCTA()">✕</button>
+  <div class="footer-modal-box" style="text-align:center;">
+    <div id="unlockCTAActiveTrial">
+      <div style="font-size:1.05rem;font-weight:900;color:var(--gold);margin-bottom:.4rem;">🔥 You've only opened <span id="unlockCTAOpenedCount">1</span> door.</div>
+      <div style="font-size:1.4rem;font-weight:900;margin-bottom:1.3rem;"><span id="unlockCTARemainingCount">0</span>+ more doors are waiting.</div>
+    </div>
+    <div id="unlockCTAExpiredTrial" style="display:none;">
+      <div style="font-size:1.6rem;margin-bottom:.4rem;">🔒</div>
+      <div style="font-size:1.1rem;font-weight:900;color:var(--gold);margin-bottom:.4rem;">THIS DOOR IS LOCKED</div>
+      <div style="font-size:.95rem;color:var(--muted);margin-bottom:.4rem;">Your free preview has ended.</div>
+      <div style="font-size:1.25rem;font-weight:900;margin-bottom:1.3rem;">Unlock all <span id="unlockCTATotalDoors">24</span>+ doors and continue the experience.</div>
+    </div>
+    <button class="chat-tier-btn" style="width:100%;justify-content:center;text-align:center;" onclick="goToStripe()">🔓 Unlock Bikini Walk — Get Full Access</button>
   </div>
 </div>
 
@@ -386,6 +417,12 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <div class="title">★ Bikini Walk</div>
       </div>
       <button class="content-close" onclick="closeContentRoom()">✕ Close</button>
+    </div>
+
+    <!-- shown only to visitors on an active free trial -->
+    <div id="trialCountdownBanner">
+      <div class="trial-countdown-text">Free access ends in <span id="trialCountdownClock">—</span></div>
+      <button class="trial-unlock-btn" onclick="goToStripe()">🔓 Unlock All Doors</button>
     </div>
 
     <!-- welcome video banner -->
@@ -697,6 +734,13 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <div id="emailExpiryList" style="font-family:'Space Mono',monospace;font-size:.75rem;color:var(--muted);line-height:1.9;"></div>
       </div>
 
+      <div class="admin-section">
+        <div class="admin-section-title">🔓 Verified Free Leads <span id="freeEmailCount" style="color:var(--gold);">(0)</span></div>
+        <p style="color:var(--muted);font-size:.78rem;margin-bottom:.9rem;">Everyone who's verified their email via the link but hasn't paid yet — only added here after they actually click the link, so these are real, confirmed addresses. Worth reaching out to when you add new doors or run a promotion.</p>
+        <div id="freeEmailsList" style="font-family:'Space Mono',monospace;font-size:.78rem;color:var(--muted);line-height:1.8;max-height:200px;overflow-y:auto;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.8rem;margin-bottom:.7rem;"></div>
+        <button class="admin-btn-outline" onclick="copyFreeEmails()">📋 Copy All</button>
+      </div>
+
       <!-- Ported from original: Welcome Video -->
       <div class="admin-section welcome-video-box">
         <div class="admin-section-title" style="color:var(--gold);">🎬 Welcome Video</div>
@@ -716,6 +760,14 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
           <button class="admin-btn-gold" onclick="addDoor()">➕ Add Door</button>
         </div>
         <p style="color:var(--muted);font-size:.78rem;margin-bottom:1rem;">Each door can hold a video, an image, or a written message. Tapping a door on the live site swings it open to reveal the content.</p>
+
+        <label class="admin-label">Default door photo (used for any door that doesn't have its own thumbnail — recommend 900×1200px, portrait 3:4)</label>
+        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.4rem;">
+          <img id="aDefaultDoorThumbPreview" style="width:36px;height:48px;object-fit:cover;border-radius:5px;background:var(--surface2);"/>
+          <input class="admin-door-input" id="aDefaultDoorThumbUrl" style="margin:0;" placeholder="https://res.cloudinary.com/.../door.jpg" oninput="saveDefaultDoorThumbnail(this.value)"/>
+          <button class="remove-door-btn" id="clearDefaultDoorThumbBtn" style="display:none;flex-shrink:0;" onclick="clearDefaultDoorThumbnail()" title="Remove">✕</button>
+        </div>
+        <p style="color:var(--muted);font-size:.72rem;margin-bottom:1rem;">Applies to every door at once. Any door with its own thumbnail set keeps that one instead.</p>
 
         <div class="hero-preview-caption">Live preview — what members will see</div>
         <div class="doors-preview-frame">
@@ -861,7 +913,8 @@ let state = {
       "thumbnail": "",
       "lockedMessage": "",
       "posterLinkText": "",
-      "posters": []
+      "posters": [],
+      "isFree": true
     },
     {
       "id": "door-2",
@@ -871,7 +924,8 @@ let state = {
       "thumbnail": "",
       "lockedMessage": "",
       "posterLinkText": "",
-      "posters": []
+      "posters": [],
+      "isFree": false
     },
     {
       "id": "door-3",
@@ -881,7 +935,8 @@ let state = {
       "thumbnail": "",
       "lockedMessage": "",
       "posterLinkText": "",
-      "posters": []
+      "posters": [],
+      "isFree": false
     },
     {
       "id": "door-4",
@@ -891,7 +946,8 @@ let state = {
       "thumbnail": "",
       "lockedMessage": "",
       "posterLinkText": "",
-      "posters": []
+      "posters": [],
+      "isFree": false
     },
     {
       "id": "door-5",
@@ -901,7 +957,8 @@ let state = {
       "thumbnail": "",
       "lockedMessage": "",
       "posterLinkText": "",
-      "posters": []
+      "posters": [],
+      "isFree": false
     },
     {
       "id": "door-6",
@@ -911,7 +968,8 @@ let state = {
       "thumbnail": "",
       "lockedMessage": "",
       "posterLinkText": "",
-      "posters": []
+      "posters": [],
+      "isFree": false
     }
   ],
   "chatEnabled": true,
@@ -957,7 +1015,9 @@ let state = {
   "chatAvatarImage": "",
   "contactMessage": "Questions about membership, billing, or anything else? Reach out and we'll get back to you as soon as possible.",
   "accessibilityStatement": "Bikini Walk is committed to making this site accessible to as many people as possible, including people with disabilities.\n\nWe aim to follow the Web Content Accessibility Guidelines (WCAG) 2.1 at Level AA where practical, covering areas such as color contrast, keyboard navigation, and compatibility with assistive technologies.\n\nKnown limitations:\n\n* Some interactive elements, such as the live chat and door animations, may not be fully optimized for all screen readers.\n* Video and audio content may not include captions or transcripts in every case.\n\nWe are continuously working to improve accessibility across the site. If you encounter a barrier while using Bikini Walk, or have suggestions for improvement, please contact us using the information on our Contact page — we take this feedback seriously and will do our best to address it.",
-  "formspreeEndpoint": ""
+  "formspreeEndpoint": "",
+  "defaultDoorThumbnail": "",
+  "freeEmails": []
 };
 
 // unlocked state is per-session (sessionStorage), same as the original VIP room —
@@ -966,6 +1026,31 @@ let unlocked = false;
 let unlockedEmail = '';
 let welcomeHasPlayed = false;
 let contentPreviewFromAdmin = false;
+// Free-tier entry: anyone who just gave an email gets in to see the free
+// door(s), persisted in localStorage (not sessionStorage) so it survives
+// across return visits — this is the "keep the free account active"
+// requirement, distinct from unlockedEmail above, which means they paid.
+let freeEnteredEmail = '';
+let lastOpenedDoorWasFree = false; // tracks whether to show the upgrade prompt when the viewer closes
+
+// The real, server-confirmed trial start time (ms epoch) for freeEnteredEmail.
+// This is what the 72-hour window is measured against — re-fetched from the
+// server (not trusted from localStorage alone) so clearing cookies or
+// editing local storage can't extend or restart it.
+let trialStartedAt = 0;
+const TRIAL_LENGTH_MS = 72 * 60 * 60 * 1000; // 72 hours
+let trialCountdownInterval = null;
+
+// True once someone has actually paid (or an admin is previewing as if they
+// had) — this is what unlocks every door, not just the free one(s).
+function isPaidUnlocked(){
+  return contentPreviewFromAdmin || (unlocked && isAccessValid(unlockedEmail));
+}
+// True only while a verified free visitor is still within their 72-hour
+// window. Once this goes false, free doors lock exactly like all the rest.
+function isTrialActive(){
+  return !!(freeEnteredEmail && trialStartedAt && (Date.now() - trialStartedAt < TRIAL_LENGTH_MS));
+}
 
 // Checks both that the email is on the approved list AND that it's still
 // within the access window (accessDurationDays since it was granted).
@@ -1275,13 +1360,38 @@ function handleHeroUpload(e){
 // ==========================================================
 //  ENTRY FLOW  (ported: openArtistVipRoom / checkArtistVipPassword / openVipSubscribe)
 // ==========================================================
-function enterTheDoors(){
+async function enterTheDoors(){
   if(liveEditMode) return; // dragging the link to reposition it shouldn't also open it
-  if(unlocked && isAccessValid(unlockedEmail)){
+  if(isPaidUnlocked()){
     openContentRoom();
-  }else{
-    unlocked = false; // in case access expired since it was granted this session
-    openGateLogin();
+    return;
+  }
+  unlocked = false; // in case access expired since it was granted this session
+  // Returning free visitor — skip the form, let them straight back in. The
+  // actual trial clock is always re-confirmed from the server (not just
+  // trusted from localStorage) so it can't be tampered with locally.
+  let storedFreeEmail = '';
+  try{ storedFreeEmail = localStorage.getItem('bw_free_email') || ''; }catch(e){}
+  if(storedFreeEmail){
+    freeEnteredEmail = storedFreeEmail;
+    await refreshTrialStatus(storedFreeEmail);
+    openContentRoom();
+    return;
+  }
+  openGateLogin();
+}
+// Pulls the real trial start time for an email from the server. Called on
+// every return visit so the countdown (and whether doors are still free)
+// always reflects the truth, not a locally-editable cached value.
+async function refreshTrialStatus(email){
+  try{
+    const res = await fetch('/.netlify/functions/site-state?checkTrial=' + encodeURIComponent(email));
+    if(res.ok){
+      const data = await res.json();
+      trialStartedAt = data.startedAt || 0;
+    }
+  }catch(e){
+    console.error('trial status check failed, using last known value:', e);
   }
 }
 function openGateLogin(){
@@ -1289,34 +1399,72 @@ function openGateLogin(){
   document.getElementById('gateDisclaimerDisplay').style.display = state.disclaimer ? 'block' : 'none';
   document.getElementById('gateLoginError').style.display = 'none';
   document.getElementById('gateLoginEmail').value = '';
+  document.getElementById('gateFormStep').style.display = 'block';
+  document.getElementById('gateCheckEmailStep').style.display = 'none';
   document.getElementById('gateLoginOverlay').classList.add('active');
 }
 function closeGateLogin(){
   document.getElementById('gateLoginOverlay').classList.remove('active');
 }
-function checkGateEmail(){
-  // ported from checkArtistVipPassword(), now expiry-aware
+async function checkGateEmail(){
   const input = document.getElementById('gateLoginEmail');
   const error = document.getElementById('gateLoginError');
-  const email = input.value.trim().toLowerCase();
-  const approved = state.emails.map(e => e.trim().toLowerCase());
+  const sendBtn = document.getElementById('gateSendLinkBtn');
+  const rawEmail = input.value.trim();
+  const email = rawEmail.toLowerCase();
 
-  if(email && approved.indexOf(email) > -1){
+  if(!email || !email.includes('@')){
+    error.textContent = 'Please enter a valid email.';
+    error.style.display = 'block';
+    return;
+  }
+
+  // Already a paying member — give them full access immediately, no need
+  // for a verification email at all since they're already a known customer.
+  const approved = state.emails.map(e => e.trim().toLowerCase());
+  if(approved.indexOf(email) > -1){
     if(!isAccessValid(email)){
       error.innerHTML = 'Your access has expired' + (state.accessDurationDays ? ' (' + state.accessDurationDays + '-day limit reached)' : '') + '. <a href="#" onclick="goToStripe(\'renewal\');return false;">Purchase again to renew</a>.';
       error.style.display = 'block';
-      input.value = '';
       return;
     }
     setUnlocked(email);
     error.style.display = 'none';
     closeGateLogin();
     openContentRoom();
-  }else{
-    error.innerHTML = 'Email not found. If you just purchased, it can take a minute to register — or <a href="#" onclick="goToStripe();return false;">purchase access here</a>.';
-    error.style.display = 'block';
-    input.value = '';
+    return;
   }
+
+  // Everyone else: send a real verification email. The free trial only
+  // actually starts once they click that link — this is what makes the
+  // captured email a REAL, confirmed one rather than whatever was typed.
+  error.style.display = 'none';
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Sending…';
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'send-magic-link', email: email }),
+    });
+    if(!res.ok){
+      const data = await res.json().catch(() => ({}));
+      error.textContent = data.error || 'Could not send the link — please try again.';
+      error.style.display = 'block';
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send My Link →';
+      return;
+    }
+    document.getElementById('gateSentToEmail').textContent = rawEmail;
+    document.getElementById('gateFormStep').style.display = 'none';
+    document.getElementById('gateCheckEmailStep').style.display = 'block';
+  }catch(e){
+    console.error('send-magic-link failed:', e);
+    error.textContent = 'Connection error — please try again.';
+    error.style.display = 'block';
+  }
+  sendBtn.disabled = false;
+  sendBtn.textContent = 'Send My Link →';
 }
 function goToStripe(kind){
   // ported from openVipSubscribe() — appends success_url so Stripe redirects back here
@@ -1338,7 +1486,59 @@ function goToStripe(kind){
 function checkStripeRedirect(){
   const params = new URLSearchParams(window.location.search);
   if(params.get('bw') === 'success'){
+    // They're almost certainly already a free-entered visitor at this point
+    // (that's how they got to the "Unlock" button) — pre-fill their email
+    // so confirming takes one click instead of retyping it.
+    let storedFreeEmail = '';
+    try{ storedFreeEmail = localStorage.getItem('bw_free_email') || ''; }catch(e){}
+    const emailInput = document.getElementById('activationEmail');
+    if(emailInput && storedFreeEmail) emailInput.value = storedFreeEmail;
     document.getElementById('activationOverlay').classList.add('active');
+  }
+}
+// Handles someone arriving via the magic-link email (?magic=TOKEN). Confirms
+// the token server-side, which both proves they really own this email and
+// starts (or reads, if one already exists) their 72-hour trial clock.
+async function checkMagicLinkRedirect(){
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('magic');
+  if(!token) return;
+
+  // Clean the URL immediately so refreshing the page doesn't try to reuse
+  // an already-spent (single-use) token.
+  if(window.history.replaceState){
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify-magic-link', token: token }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.success){
+      showToast('⚠ ' + (data.error || 'That link is invalid or has expired.'));
+      return;
+    }
+
+    // Verified — this is a real, confirmed email. Capture it for the
+    // owner's lead list, remember it on this device, and start the room.
+    const email = data.email;
+    const rawFromList = state.freeEmails.find(e => e.trim().toLowerCase() === email);
+    if(!rawFromList){
+      state.freeEmails.push(email);
+      saveState();
+    }
+    try{ localStorage.setItem('bw_free_email', email); }catch(e){}
+    freeEnteredEmail = email;
+    trialStartedAt = data.startedAt;
+
+    showToast('✓ Email verified — your free preview has started');
+    openContentRoom();
+  }catch(e){
+    console.error('magic link verification failed:', e);
+    showToast('⚠ Connection error verifying your link — please try again.');
   }
 }
 function activateEmail(){
@@ -1400,13 +1600,52 @@ function openContentRoom(){
   welcomeHasPlayed = false; // play welcome video again each time the room opens
   renderWelcomeBanner();
   renderDoors();
+  updateTrialCountdownBanner();
 }
 function closeContentRoom(){
   document.getElementById('contentOverlay').classList.remove('active');
+  if(trialCountdownInterval){ clearInterval(trialCountdownInterval); trialCountdownInterval = null; }
   if(contentPreviewFromAdmin){
     contentPreviewFromAdmin = false;
     openAdminGate();
   }
+}
+// Shows (and live-updates) the "Free access ends in..." banner only while
+// a free visitor's trial is actually still running. Paid members and admin
+// previews never see it; once the trial expires, it just disappears.
+function updateTrialCountdownBanner(){
+  const banner = document.getElementById('trialCountdownBanner');
+  if(!banner) return;
+  if(trialCountdownInterval){ clearInterval(trialCountdownInterval); trialCountdownInterval = null; }
+
+  if(isPaidUnlocked() || !isTrialActive()){
+    banner.style.display = 'none';
+    return;
+  }
+
+  banner.style.display = 'flex';
+  const tick = function(){
+    const remaining = Math.max(0, trialStartedAt + TRIAL_LENGTH_MS - Date.now());
+    if(remaining <= 0){
+      clearInterval(trialCountdownInterval);
+      trialCountdownInterval = null;
+      banner.style.display = 'none';
+      renderDoors(); // free door(s) now lock, matching every other door
+      return;
+    }
+    const totalSeconds = Math.floor(remaining / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    const clockEl = document.getElementById('trialCountdownClock');
+    if(clockEl){
+      clockEl.textContent = (days > 0 ? days + ' day' + (days !== 1 ? 's' : '') + ', ' : '') +
+        String(hours).padStart(2,'0') + ':' + String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+    }
+  };
+  tick();
+  trialCountdownInterval = setInterval(tick, 1000);
 }
 
 // ── WELCOME VIDEO — ported from vipRenderWelcomeBanner / vipStopWelcome / vipReplayWelcome ──
@@ -1474,9 +1713,12 @@ function replayWelcome(){
 // ── DOORS — ported from vipRenderDoors / vipOpenDoor / vipCloseDoorViewer ──
 function renderDoors(){
   renderDoorsInto('doorsGrid', 'contentEmpty');
-  renderDoorsInto('adminDoorsPreview', 'adminDoorsPreviewEmpty');
+  // Always full access here — this is the admin's own editing preview, not
+  // a real visitor's view (that's what "Preview as Customer" is for), so
+  // lock icons here would just get in the way of configuring doors.
+  renderDoorsInto('adminDoorsPreview', 'adminDoorsPreviewEmpty', true);
 }
-function renderDoorsInto(gridId, emptyId){
+function renderDoorsInto(gridId, emptyId, forceFullAccess){
   const grid = document.getElementById(gridId);
   const emptyMsg = document.getElementById(emptyId);
   if(!grid) return;
@@ -1492,15 +1734,31 @@ function renderDoorsInto(gridId, emptyId){
   }
   if(emptyMsg) emptyMsg.style.display = 'none';
 
+  const isPaid = forceFullAccess || isPaidUnlocked();
+
   grid.innerHTML = state.doors.map(function(d){
     const hasContent = d.url && d.url.trim();
-    const hasThumb = d.thumbnail && d.thumbnail.trim();
+    // Visible and openable if it's free, or the visitor has actually paid.
+    // Otherwise — if it has real content — it stays visible but locked,
+    // which is the whole point: show exactly what's being missed rather
+    // than hiding it.
+    const canOpen = hasContent && (isPaid || (d.isFree && isTrialActive()));
+    const isPaywalled = hasContent && !canOpen;
+    const thumbSrc = (d.thumbnail && d.thumbnail.trim()) || (state.defaultDoorThumbnail && state.defaultDoorThumbnail.trim());
+    const hasThumb = !!thumbSrc;
     const hasPosters = d.posters && d.posters.length > 0;
 
-    const doorHtml = '<div class="door' + (hasContent ? '' : ' empty') + (hasThumb ? ' has-thumb' : '') + '" onclick="' + (hasContent ? "openDoor('" + d.id + "')" : '') + '">' +
-      '<div class="door-bg">' + (hasThumb ? '<img src="' + d.thumbnail + '" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>' : '<span>★</span>') + '</div>' +
+    let clickAction = '';
+    if(canOpen) clickAction = "openDoor('" + d.id + "')";
+    else if(isPaywalled) clickAction = "showUnlockCTA()";
+
+    const doorClasses = 'door' + (hasContent ? '' : ' empty') + (hasThumb ? ' has-thumb' : '') + (isPaywalled ? ' paywalled' : '');
+
+    const doorHtml = '<div class="' + doorClasses + '" onclick="' + clickAction + '">' +
+      '<div class="door-bg">' + (hasThumb ? '<img src="' + thumbSrc + '" oncontextmenu="return false;" draggable="false" style="user-select:none;-webkit-user-drag:none;"/>' : '<span>★</span>') + '</div>' +
+      (isPaywalled ? '<div class="door-lock-overlay">🔒</div>' : '') +
       '<div class="door-panel">' +
-        '<div class="door-star">★</div>' +
+        '<div class="door-star">' + (isPaywalled ? '🔒' : '★') + '</div>' +
         '<div class="door-label-txt">' + escapeHtml(d.label) + '</div>' +
         (!hasContent && d.lockedMessage && d.lockedMessage.trim() ? '<div class="door-locked-msg">' + escapeHtml(d.lockedMessage) + '</div>' : '') +
       '</div>' +
@@ -1513,9 +1771,41 @@ function renderDoorsInto(gridId, emptyId){
     return '<div class="door-cell">' + doorHtml + posterLinkHtml + '</div>';
   }).join('');
 }
+// Shown after closing a free door, or tapping any locked door — nudges
+// toward the full unlock, with real numbers pulled from the actual doors.
+function showUnlockCTA(){
+  const withContent = state.doors.filter(d => d.url && d.url.trim());
+  const freeOnes = withContent.filter(d => d.isFree);
+  const remaining = Math.max(0, withContent.length - freeOnes.length);
+
+  const trialEverStarted = !!(freeEnteredEmail && trialStartedAt);
+  const expired = trialEverStarted && !isTrialActive();
+
+  document.getElementById('unlockCTAActiveTrial').style.display = expired ? 'none' : 'block';
+  document.getElementById('unlockCTAExpiredTrial').style.display = expired ? 'block' : 'none';
+
+  if(expired){
+    document.getElementById('unlockCTATotalDoors').textContent = withContent.length;
+  }else{
+    document.getElementById('unlockCTAOpenedCount').textContent = freeOnes.length || 1;
+    document.getElementById('unlockCTARemainingCount').textContent = remaining;
+  }
+  document.getElementById('unlockCTAModal').classList.add('active');
+}
+function closeUnlockCTA(){
+  document.getElementById('unlockCTAModal').classList.remove('active');
+}
 function openDoor(doorId){
   const door = state.doors.find(d => d.id === doorId);
   if(!door || !door.url || !door.url.trim()) return;
+  // Defensive: this should never be reachable for a paywalled door since
+  // the grid only wires up this onclick for doors that are actually
+  // openable, but guard it anyway rather than trust the UI alone.
+  if(!isPaidUnlocked() && !(door.isFree && isTrialActive())){
+    showUnlockCTA();
+    return;
+  }
+  lastOpenedDoorWasFree = !isPaidUnlocked(); // paid visitors never see the upgrade prompt on close
 
   // stop the welcome video if it's still playing in the background
   const welcomeVid = document.getElementById('welcomeVideo');
@@ -1600,6 +1890,13 @@ function closeDoorViewer(){
   const stageContent = document.getElementById('doorStageContent');
   if(stage) stage.classList.remove('active');
   if(stageContent) stageContent.innerHTML = ''; // stop playback
+
+  // This is the core conversion moment: they just watched the free sample,
+  // so hit them with the upgrade prompt right as they come back out.
+  if(lastOpenedDoorWasFree && !isPaidUnlocked()){
+    setTimeout(showUnlockCTA, 300); // small delay so it doesn't feel like it interrupted the close
+  }
+  lastOpenedDoorWasFree = false;
 }
 
 // ── Poster gallery — the "shop posters" link under a door opens a list of
@@ -2110,6 +2407,7 @@ function renderAdminPanel(){
   document.getElementById('emailCount').textContent = '(' + state.emails.length + ')';
   document.getElementById('aAccessDays').value = state.accessDurationDays;
   renderEmailExpiryList();
+  renderFreeEmailsList();
   document.getElementById('aWelcomeUrl').value = state.welcomeVideo.url || '';
   document.getElementById('aChatEnabled').checked = !!state.chatEnabled;
   document.getElementById('aChatPersona').value = state.chatPersonaPrompt || '';
@@ -2529,6 +2827,18 @@ function copyEmails(){
   navigator.clipboard.writeText(state.emails.join('\n'));
   showToast('✓ Copied to clipboard');
 }
+function renderFreeEmailsList(){
+  document.getElementById('freeEmailCount').textContent = '(' + state.freeEmails.length + ')';
+  const wrap = document.getElementById('freeEmailsList');
+  if(!wrap) return;
+  wrap.innerHTML = state.freeEmails.length
+    ? state.freeEmails.map(e => escapeHtml(e)).join('<br>')
+    : '<span style="color:var(--muted2);">No free leads yet.</span>';
+}
+function copyFreeEmails(){
+  navigator.clipboard.writeText(state.freeEmails.join('\n'));
+  showToast('✓ Copied to clipboard');
+}
 function saveAccessDuration(){
   const val = Number(document.getElementById('aAccessDays').value);
   state.accessDurationDays = isNaN(val) || val < 0 ? 0 : val;
@@ -2599,6 +2909,9 @@ function previewWelcomeAdmin(){
 function renderAdminDoors(){
   const list = document.getElementById('adminDoorsList');
   document.getElementById('doorCount').textContent = state.doors.length;
+  document.getElementById('aDefaultDoorThumbUrl').value = state.defaultDoorThumbnail || '';
+  document.getElementById('aDefaultDoorThumbPreview').src = state.defaultDoorThumbnail || '';
+  document.getElementById('clearDefaultDoorThumbBtn').style.display = state.defaultDoorThumbnail ? 'flex' : 'none';
   list.innerHTML = state.doors.map(function(d){
     return '<div class="admin-door-card">' +
       '<div class="admin-door-card-head">' +
@@ -2610,6 +2923,10 @@ function renderAdminDoors(){
           '<button class="remove-door-btn" onclick="removeDoor(\'' + d.id + '\')">✕</button>' +
         '</div>' +
       '</div>' +
+      '<label style="display:flex;align-items:center;gap:.4rem;margin:.4rem 0 .7rem;cursor:pointer;">' +
+        '<input type="checkbox" ' + (d.isFree ? 'checked' : '') + ' onchange="toggleDoorFree(\'' + d.id + '\', this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--gold);"/>' +
+        '<span style="font-size:.78rem;color:var(--gold);font-weight:700;">🔓 Free preview door (no payment required to open this one)</span>' +
+      '</label>' +
       (d.type === 'message'
         ? '<textarea class="admin-door-input" id="door-url-' + d.id + '" placeholder="Type the message that appears behind this door..." style="min-height:60px;" oninput="liveDoorUpdate(\'' + d.id + '\')">' + escapeHtml(d.url||'') + '</textarea>'
         : '<input class="admin-door-input" id="door-url-' + d.id + '" value="' + escapeHtml(d.url||'') + '" placeholder="' + (d.type==='video' ? 'Video URL (.mp4)' : 'Image URL') + '" oninput="liveDoorUpdate(\'' + d.id + '\')"/>'
@@ -2661,7 +2978,7 @@ function renderAdminPosterSection(d){
 }
 function addDoor(){
   const nextNum = state.doors.length + 1;
-  state.doors.push({ id: 'door-' + Date.now(), label: 'Door ' + nextNum, type: 'video', url: '', thumbnail: '', lockedMessage: '', posterLinkText: '', posters: [] });
+  state.doors.push({ id: 'door-' + Date.now(), label: 'Door ' + nextNum, type: 'video', url: '', thumbnail: '', lockedMessage: '', posterLinkText: '', posters: [], isFree: false });
   renderAdminDoors();
   saveState();
   showToast('✓ Door ' + nextNum + ' added');
@@ -2717,6 +3034,13 @@ function liveDoorUpdate(doorId){
   saveState();
   renderDoors();
 }
+function toggleDoorFree(doorId, isFree){
+  const door = state.doors.find(d => d.id === doorId);
+  if(!door) return;
+  door.isFree = isFree;
+  saveState();
+  renderDoors();
+}
 // Thumbnails are single small images (not video), so base64-in-localStorage is safe here —
 // unlike the door video/image content itself, which stays URL-only (Cloudinary etc).
 function uploadDoorThumb(doorId, e){
@@ -2740,6 +3064,25 @@ function clearDoorThumb(doorId){
   saveState();
   renderAdminDoors();
   showToast('Thumbnail removed — upload a new one anytime');
+}
+
+// ── Default door thumbnail (applies to every door without its own) ──
+function saveDefaultDoorThumbnail(url){
+  const trimmed = url.trim();
+  state.defaultDoorThumbnail = trimmed;
+  document.getElementById('aDefaultDoorThumbPreview').src = trimmed;
+  document.getElementById('clearDefaultDoorThumbBtn').style.display = trimmed ? 'flex' : 'none';
+  saveState();
+  renderDoors();
+}
+function clearDefaultDoorThumbnail(){
+  state.defaultDoorThumbnail = '';
+  document.getElementById('aDefaultDoorThumbUrl').value = '';
+  document.getElementById('aDefaultDoorThumbPreview').src = '';
+  document.getElementById('clearDefaultDoorThumbBtn').style.display = 'none';
+  saveState();
+  renderDoors();
+  showToast('Default door photo removed');
 }
 
 // ── Poster gallery management (per door, up to 8 designs) ──
@@ -2890,6 +3233,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderFrontPage();
   document.getElementById('footerYear').textContent = new Date().getFullYear();
   checkStripeRedirect();
+  checkMagicLinkRedirect();
   setupHeroDrag();
   setupHeroTextDrag();
 
@@ -2908,6 +3252,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('chatTierModal').addEventListener('mousedown', function(e){ if(e.target===this) closeChatTierModal(); });
   document.getElementById('contactModal').addEventListener('mousedown', function(e){ if(e.target===this) closeContactModal(); });
   document.getElementById('accessibilityModal').addEventListener('mousedown', function(e){ if(e.target===this) closeAccessibilityModal(); });
+  document.getElementById('unlockCTAModal').addEventListener('mousedown', function(e){ if(e.target===this) closeUnlockCTA(); });
 
   // Hidden admin access — two ways in, since the keyboard trick below has
   // no equivalent on a phone (no keyboard exists without a focused text
