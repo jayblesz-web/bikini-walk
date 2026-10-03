@@ -456,6 +456,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
           UNLOCK ALL DOORS ›
         </button>
         <button class="ucta-later" onclick="closeUnlockCTA()">Maybe later</button>
+        <div><button class="ucta-later" style="margin-top:.2rem;color:#f5c842;" onclick="openMemberSignIn()">Already paid? Sign in</button></div>
       </div>
     </div>
   </div>
@@ -1641,7 +1642,20 @@ function beginFreePreview(email, startedAt){
   closeGateLogin();
   openContentRoom();
 }
+// Members (paid already) sign in with an emailed link — reachable even when
+// this device skips the email box because it remembers a free preview.
+let gateMemberMode = false;
+function openMemberSignIn(){
+  closeUnlockCTA();
+  closeContentRoom();
+  openGateLogin();
+  gateMemberMode = true;
+  document.getElementById('gateIntroText').textContent = "Already a member? Enter the email you paid with and we'll send you a sign-in link.";
+  document.getElementById('gateSendLinkBtn').textContent = 'Send my sign-in link';
+  if(freeEnteredEmail && freeEnteredEmail !== 'admin-preview') document.getElementById('gateLoginEmail').value = freeEnteredEmail;
+}
 function openGateLogin(){
+  gateMemberMode = false;
   const verify = state.requireEmailVerification !== false;
   const firstFree = state.doors.find(d => d.isFree);
   const freeName = firstFree ? firstFree.label : 'Your free door';
@@ -1676,8 +1690,8 @@ async function checkGateEmail(){
   // Already a paying member — give them full access immediately, no need
   // for a verification email at all since they're already a known customer.
   error.style.display = 'none';
-  const verify = state.requireEmailVerification !== false;
-  const idleLabel = verify ? 'Send my link' : 'Start my free preview';
+  const verify = gateMemberMode || state.requireEmailVerification !== false;
+  const idleLabel = gateMemberMode ? 'Send my sign-in link' : (verify ? 'Send my link' : 'Start my free preview');
 
   // Owner switched verification off in Admin: start the preview right away.
   // The server double-checks that setting, so this can't be forced.
