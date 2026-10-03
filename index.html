@@ -198,6 +198,11 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .door-padlock{position:absolute;left:50.5%;top:52%;width:15%;transform:translate(-50%,-50%);filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));}
 .door-padlock-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
 .door-padlock-center svg{width:34%;max-width:70px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));}
+.door-handle-lock{position:absolute;z-index:2;pointer-events:none;width:0;height:0;}
+.door-handle-glow{position:absolute;left:0;top:0;width:26px;height:26px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(255,220,80,1) 0%,rgba(255,200,40,.6) 30%,rgba(255,190,30,0) 70%);mix-blend-mode:screen;animation:handleGlow 2.4s ease-in-out infinite;}
+.door-handle-lock svg{position:absolute;left:0;top:0;width:15px;height:auto;transform:translate(-50%,-12%);filter:drop-shadow(0 2px 3px rgba(0,0,0,.85)) drop-shadow(0 0 5px rgba(255,200,40,.7));}
+@keyframes handleGlow{0%,100%{opacity:.8;}50%{opacity:1;}}
+@media (min-width:700px){ .door-handle-lock svg{width:18px;} .door-handle-glow{width:32px;height:32px;} }
 .door-free-badge{position:absolute;top:8px;left:8px;z-index:4;background:var(--gold);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:.62rem;padding:.25rem .5rem;border-radius:999px;}
 .door.paywalled .door-bg img{filter:brightness(.72);}
 .door-move-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);width:28px;height:26px;border-radius:6px;cursor:pointer;font-size:.75rem;display:flex;align-items:center;justify-content:center;}
@@ -854,6 +859,22 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
           <input type="checkbox" id="aShowDoorPlaque" onchange="toggleDoorPlaque(this.checked)" style="width:16px;height:16px;accent-color:var(--gold);"/>
           <span style="font-size:.78rem;color:var(--muted);">Show each door's number on the house-number plaque and the padlock on the door (for the default door photo)</span>
         </label>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.8rem;margin-bottom:.8rem;">
+          <label class="admin-label" style="margin-top:0;">Padlock on locked doors</label>
+          <div class="admin-preview-toggle" style="margin-bottom:.5rem;">
+            <button class="type-btn" id="aLockStyleHandle" onclick="setLockStyle('handle');this.classList.add('active');document.getElementById('aLockStyleCenter').classList.remove('active');">🔒 On the door handle</button>
+            <button class="type-btn" id="aLockStyleCenter" onclick="setLockStyle('center');this.classList.add('active');document.getElementById('aLockStyleHandle').classList.remove('active');">Big, centered</button>
+          </div>
+          <div id="aLockHandleControls">
+            <p style="color:var(--muted);font-size:.74rem;margin:0 0 .4rem;">Slide until the glow sits on the handle in the preview below.</p>
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.75rem;color:var(--muted);">Left ↔ Right
+              <input type="range" id="aLockHandleX" min="5" max="95" step="0.5" style="flex:1;accent-color:var(--gold);" oninput="setLockHandle('x', this.value)"/>
+              <span id="aLockHandleXVal" style="width:44px;color:var(--gold);"></span></div>
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.75rem;color:var(--muted);">Up ↕ Down
+              <input type="range" id="aLockHandleY" min="5" max="95" step="0.5" style="flex:1;accent-color:var(--gold);" oninput="setLockHandle('y', this.value)"/>
+              <span id="aLockHandleYVal" style="width:44px;color:var(--gold);"></span></div>
+          </div>
+        </div>
         <div class="doors-preview-frame">
           <div class="doors-grid" id="adminDoorsPreview"></div>
           <div id="adminDoorsPreviewEmpty" style="display:none;text-align:center;color:var(--muted2);padding:2rem 0;font-family:'Space Mono',monospace;font-size:.75rem;">No content yet — add a door below.</div>
@@ -1918,6 +1939,24 @@ const PADLOCK_SVG = '<svg viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg"
   '<rect x="3" y="21" width="34" height="29" rx="5" fill="#f5c842"/>' +
   '<circle cx="20" cy="33" r="4" fill="#2a2410"/><rect x="18.2" y="34" width="3.6" height="9" rx="1.5" fill="#2a2410"/>' +
   '</svg>';
+// Where the door handle sits on the door photo, as % of the tile (Admin sliders).
+function handlePos(axis){
+  const v = Number(axis === 'x' ? state.lockHandleX : state.lockHandleY);
+  const def = axis === 'x' ? 68.5 : 43.5;
+  return (isFinite(v) && v > 0 && v < 100) ? v : def;
+}
+function setLockStyle(style){
+  state.lockStyle = style;
+  saveState();
+  document.getElementById('aLockHandleControls').style.display = style === 'center' ? 'none' : 'block';
+  setAdminDoorPreviewMode('free');
+}
+function setLockHandle(axis, val){
+  if(axis === 'x') state.lockHandleX = Number(val); else state.lockHandleY = Number(val);
+  document.getElementById(axis === 'x' ? 'aLockHandleXVal' : 'aLockHandleYVal').textContent = Number(val).toFixed(1) + '%';
+  saveState();
+  if(adminDoorPreviewMode !== 'free') setAdminDoorPreviewMode('free'); else renderDoors();
+}
 function renderDoorsInto(gridId, emptyId, previewAs){
   const grid = document.getElementById(gridId);
   const emptyMsg = document.getElementById(emptyId);
@@ -1967,7 +2006,12 @@ function renderDoorsInto(gridId, emptyId, previewAs){
           '<div class="door-plaque"><span>' + escapeHtml(doorNumber(d, index)) + '</span></div>' +
           (isLocked ? '<div class="door-padlock">' + PADLOCK_SVG + '</div>' : '') +
         '</div>'
-      : (isLocked ? '<div class="door-padlock-center">' + PADLOCK_SVG + '</div>' : '');
+      : (isLocked
+          ? (state.lockStyle === 'center'
+              ? '<div class="door-padlock-center">' + PADLOCK_SVG + '</div>'
+              // Padlock hung on the door handle, with the handle glowing gold.
+              : '<div class="door-handle-lock" style="left:' + handlePos('x') + '%;top:' + handlePos('y') + '%;"><div class="door-handle-glow"></div>' + PADLOCK_SVG + '</div>')
+          : '');
 
     const freeBadge = (d.isFree && canOpen && !isPaid) ? '<div class="door-free-badge">Free preview</div>' : '';
 
@@ -2663,6 +2707,14 @@ function renderAdminPanel(){
   renderFreeEmailsList();
   document.getElementById('aRequireVerify').checked = state.requireEmailVerification !== false;
   document.getElementById('aShowDoorPlaque').checked = state.showDoorPlaque !== false;
+  const lockCenter = state.lockStyle === 'center';
+  document.getElementById('aLockStyleHandle').classList.toggle('active', !lockCenter);
+  document.getElementById('aLockStyleCenter').classList.toggle('active', lockCenter);
+  document.getElementById('aLockHandleControls').style.display = lockCenter ? 'none' : 'block';
+  document.getElementById('aLockHandleX').value = handlePos('x');
+  document.getElementById('aLockHandleY').value = handlePos('y');
+  document.getElementById('aLockHandleXVal').textContent = handlePos('x').toFixed(1) + '%';
+  document.getElementById('aLockHandleYVal').textContent = handlePos('y').toFixed(1) + '%';
   document.getElementById('aWelcomeUrl').value = state.welcomeVideo.url || '';
   document.getElementById('aChatEnabled').checked = !!state.chatEnabled;
   document.getElementById('aChatPersona').value = state.chatPersonaPrompt || '';
