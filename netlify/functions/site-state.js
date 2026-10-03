@@ -33,10 +33,14 @@
 //     that email's 72-hour trial clock. Also records the email as a free lead.
 //   { action: 'start-trial', email } → { success, email, startedAt }
 //     Only works when Admin has "Require email verification" switched OFF.
-//   { action: 'activate-paid', email } → { success }  (after Stripe redirect)
+//   { action: 'check-member', email } → { member, grantedAt, expired }
+//   { action: 'check-purchase', ref } → { paid, kind, ... }  (after Stripe redirect;
+//     payments are recorded by stripe-webhook.js, never by the browser)
+//   { action: 'admin-load', password } → { state (including private lists), loadedAt }
 //   { action: 'test-email', password, email } → { success, config, detail?, hint? }
 //
-// 'save' and 'test-email' require the admin password.
+// 'save', 'admin-load' and 'test-email' require the admin password.
+// GET never includes member emails, access dates, or free leads.
 
 const { getStore } = require('@netlify/blobs');
 
@@ -127,6 +131,26 @@ async function recordFreeLead(store, email){
   }catch(e){ console.error('recordFreeLead failed:', e); }
 }
 
+// Member emails, their access dates, and free leads are private: visitors
+// get every other setting, but never these lists. Admin gets them through
+// the password-protected 'admin-load' action.
+const PRIVATE_KEYS = ['emails', 'emailAccess', 'freeEmails'];
+function publicState(state){
+  if(!state) return state;
+  const copy = Object.assign({}, state);
+  PRIVATE_KEYS.forEach(function(k){ delete copy[k]; });
+  return copy;
+}
+function memberInfo(state, email){
+  const norm = (email || '').trim().toLowerCase();
+  const emails = Array.isArray(state.emails) ? state.emails.map(e => (e || '').trim().toLowerCase()) : [];
+  if(!norm || emails.indexOf(norm) === -1) return { member: false };
+  const days = Number(state.accessDurationDays) || 0;
+  const grantedAt = (state.emailAccess && state.emailAccess[norm]) || 0;
+  const expired = days > 0 && grantedAt > 0 && (Date.now() - grantedAt) > days * 86400000;
+  return { member: true, grantedAt: grantedAt, expired: expired, accessDurationDays: days };
+}
+
 async function startTrialFor(store, email){
   let trial = await store.get('trial:' + email, { type: 'json' });
   if(!trial){
@@ -166,7 +190,7 @@ exports.handler = async function (event) {
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: stored ? stored.state : null }),
+        body: JSON.stringify({ state: stored ? publicState(stored.state) : null }),
       };
     } catch (err) {
       console.error('site-state GET error:', err);
@@ -281,28 +305,62 @@ exports.handler = async function (event) {
       }
     }
 
-    // Called after Stripe sends the buyer back (?bw=success). Adds just this
-    // one email to the approved list instead of letting the browser rewrite
-    // the whole site. (Still trusts the redirect — see HANDOFF.md, Stripe webhook.)
-    if (body.action === 'activate-paid') {
-      const email = (body.email || '').trim().toLowerCase();
-      if (!email || !email.includes('@')) {
-        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid email' }) };
+    // Is this email a paying member? (Used by the sign-in box and on return
+    // visits.) Only answers about the one email asked — never lists anyone.
+    if (body.action === 'check-member') {
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(memberInfo(siteState, body.email)),
+      };
+    }
+
+    // After the Stripe redirect: did the Stripe webhook record a real payment
+    // for this checkout? <ref> is the random id this browser added to the
+    // Stripe link. Chat packs can be claimed once; full access just reports.
+    if (body.action === 'check-purchase') {
+      const ref = (body.ref || '').toString().trim();
+      if (!/^(acc|chat)_[A-Za-z0-9_-]{6,150}$/.test(ref)) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid reference' }) };
       }
       try {
-        const next = stored || { state: {}, password: currentPassword };
-        next.state = next.state || {};
-        const emails = Array.isArray(next.state.emails) ? next.state.emails : [];
-        if (emails.map(e => (e || '').toLowerCase()).indexOf(email) === -1) emails.push(email);
-        next.state.emails = emails;
-        next.state.emailAccess = next.state.emailAccess || {};
-        next.state.emailAccess[email] = Date.now();
-        await store.setJSON(BLOB_KEY, next);
-        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: true }) };
+        const purchase = await store.get('purchase:' + ref, { type: 'json' });
+        if (!purchase) {
+          return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: false }) };
+        }
+        if (purchase.kind === 'chat') {
+          if (!purchase.tierOk) {
+            return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', problem: 'mismatch' }) };
+          }
+          if (purchase.claimed) {
+            return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', alreadyClaimed: true }) };
+          }
+          purchase.claimed = true;
+          purchase.claimedAt = Date.now();
+          await store.setJSON('purchase:' + ref, purchase);
+          return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', tierId: purchase.tierId, email: purchase.email }) };
+        }
+        return {
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({ paid: true, kind: 'access', email: purchase.email }, memberInfo(siteState, purchase.email))),
+        };
       } catch (err) {
-        console.error('activate-paid error:', err);
-        return { statusCode: 500, body: JSON.stringify({ error: 'Failed to activate' }) };
+        console.error('check-purchase error:', err);
+        return { statusCode: 500, body: JSON.stringify({ error: 'Failed to check purchase' }) };
       }
+    }
+
+    // Admin-only: the full state, including the private email lists.
+    if (body.action === 'admin-load') {
+      if (body.password !== currentPassword) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Not authorized' }) };
+      }
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: siteState, loadedAt: Date.now() }),
+      };
     }
 
     // Admin-only: send a real test email and report exactly what Resend said.
@@ -354,6 +412,30 @@ exports.handler = async function (event) {
       // Free leads are added by the server as people verify, so an Admin tab
       // that loaded earlier mustn't wipe the ones that arrived since.
       const incoming = body.state;
+
+      // Private lists: if this Admin tab never loaded them, keep the server's
+      // copy untouched. If it did, keep Admin's edits but also keep anyone the
+      // Stripe webhook added after Admin loaded (so a save can't erase a new buyer).
+      const loadedAt = Number(body.privateLoadedAt) || 0;
+      if (!loadedAt) {
+        incoming.emails = siteState.emails || [];
+        incoming.emailAccess = siteState.emailAccess || {};
+      } else {
+        const keptEmails = Array.isArray(incoming.emails) ? incoming.emails.slice() : [];
+        const keptNorm = keptEmails.map(e => (e || '').trim().toLowerCase());
+        incoming.emailAccess = Object.assign({}, incoming.emailAccess || {});
+        const serverAccess = siteState.emailAccess || {};
+        (siteState.emails || []).forEach(function (e) {
+          const norm = (e || '').trim().toLowerCase();
+          const at = serverAccess[norm] || 0;
+          if (at > loadedAt) {
+            if (keptNorm.indexOf(norm) === -1) { keptEmails.push(e); keptNorm.push(norm); }
+            if (!incoming.emailAccess[norm] || incoming.emailAccess[norm] < at) incoming.emailAccess[norm] = at;
+          }
+        });
+        incoming.emails = keptEmails;
+      }
+
       const oldLeads = Array.isArray(siteState.freeEmails) ? siteState.freeEmails : [];
       const newLeads = Array.isArray(incoming.freeEmails) ? incoming.freeEmails : [];
       const seen = {};
