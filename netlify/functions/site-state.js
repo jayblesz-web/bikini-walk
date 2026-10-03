@@ -33,14 +33,16 @@
 //     that email's 72-hour trial clock. Also records the email as a free lead.
 //   { action: 'start-trial', email } → { success, email, startedAt }
 //     Only works when Admin has "Require email verification" switched OFF.
-//   { action: 'check-member', email } → { member, grantedAt, expired }
+//   { action: 'member-session', token } → { valid, email, grantedAt, token, doors[{id,url}] }
 //   { action: 'check-purchase', ref } → { paid, kind, ... }  (after Stripe redirect;
 //     payments are recorded by stripe-webhook.js, never by the browser)
 //   { action: 'admin-load', password } → { state (including private lists), loadedAt }
 //   { action: 'test-email', password, email } → { success, config, detail?, hint? }
 //
 // 'save', 'admin-load' and 'test-email' require the admin password.
-// GET never includes member emails, access dates, or free leads.
+// GET never includes member emails, access dates, free leads, or paid door links.
+// Members prove their email by sign-in link (or by being the browser that
+// made the Stripe purchase) and then receive a signed pass.
 
 const { getStore } = require('@netlify/blobs');
 
@@ -63,7 +65,7 @@ function generateToken(){
   return bytes.toString('hex');
 }
 
-async function sendMagicLinkEmail(email, link){
+async function sendMagicLinkEmail(email, link, isMember){
   const apiKey = process.env.RESEND_API_KEY;
   const fromAddress = process.env.RESEND_FROM_ADDRESS || 'Bikini Walk <onboarding@resend.dev>';
   if(!apiKey){
@@ -78,11 +80,13 @@ async function sendMagicLinkEmail(email, link){
     body: JSON.stringify({
       from: fromAddress,
       to: [email],
-      subject: 'Your Bikini Walk access link',
+      subject: isMember ? 'Your Bikini Walk sign-in link' : 'Your Bikini Walk access link',
       html:
         '<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">' +
-          '<h2 style="margin-bottom:8px;">You\'re almost in.</h2>' +
-          '<p style="color:#555;line-height:1.6;">Click below to verify your email and start your free 72-hour preview of Bikini Walk — Door 1 unlocks immediately.</p>' +
+          '<h2 style="margin-bottom:8px;">' + (isMember ? 'Welcome back.' : 'You\'re almost in.') + '</h2>' +
+          '<p style="color:#555;line-height:1.6;">' + (isMember
+            ? 'Click below to sign in to Bikini Walk. All your doors are waiting.'
+            : 'Click below to verify your email and start your free 72-hour preview of Bikini Walk — your free door unlocks immediately.') + '</p>' +
           '<p style="margin:28px 0;"><a href="' + link + '" style="background:#f5c842;color:#000;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">Enter Bikini Walk →</a></p>' +
           '<p style="color:#999;font-size:12px;">This link expires in 30 minutes. If you didn\'t request this, you can ignore this email.</p>' +
         '</div>',
@@ -139,7 +143,56 @@ function publicState(state){
   if(!state) return state;
   const copy = Object.assign({}, state);
   PRIVATE_KEYS.forEach(function(k){ delete copy[k]; });
+  // Paid doors' video/image links (or hidden message text) only go to signed-in
+  // members via 'member-session'. Visitors just learn the door has content.
+  if (Array.isArray(copy.doors)) {
+    copy.doors = copy.doors.map(function (d) {
+      const has = !!(d && d.url && String(d.url).trim());
+      if (!d || d.isFree) return Object.assign({}, d, { hasContent: has });
+      return Object.assign({}, d, { url: '', hasContent: has });
+    });
+  }
   return copy;
+}
+function paidDoorContent(state){
+  return (Array.isArray(state.doors) ? state.doors : [])
+    .filter(function (d) { return d && d.url && String(d.url).trim(); })
+    .map(function (d) { return { id: d.id, url: d.url }; });
+}
+
+// ---- Member passes (signed tokens) ----
+// After a member proves who they are (email link, or the browser that made
+// the Stripe purchase), the server hands that browser a signed pass. The
+// browser can't forge or edit one; the server checks it on every visit and
+// still checks that the email's paid access hasn't expired.
+const TOKEN_TTL_MS = 60 * 24 * 60 * 60 * 1000; // a pass lasts up to 60 days on a device
+async function getTokenSecret(store){
+  let rec = await store.get('secret:member-token', { type: 'json' });
+  if (!rec || !rec.secret) {
+    rec = { secret: require('crypto').randomBytes(32).toString('hex'), createdAt: Date.now() };
+    await store.setJSON('secret:member-token', rec);
+  }
+  return rec.secret;
+}
+function b64url(buf){ return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+async function makeMemberToken(store, email){
+  const secret = await getTokenSecret(store);
+  const payload = b64url(JSON.stringify({ e: email, x: Date.now() + TOKEN_TTL_MS }));
+  const sig = b64url(require('crypto').createHmac('sha256', secret).update(payload).digest());
+  return payload + '.' + sig;
+}
+async function readMemberToken(store, token){
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 2) return null;
+    const secret = await getTokenSecret(store);
+    const expected = b64url(require('crypto').createHmac('sha256', secret).update(parts[0]).digest());
+    if (expected.length !== parts[1].length ||
+        !require('crypto').timingSafeEqual(Buffer.from(expected), Buffer.from(parts[1]))) return null;
+    const data = JSON.parse(Buffer.from(parts[0].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+    if (!data.e || !data.x || Date.now() > data.x) return null;
+    return data.e;
+  } catch (e) { return null; }
 }
 function memberInfo(state, email){
   const norm = (email || '').trim().toLowerCase();
@@ -149,6 +202,31 @@ function memberInfo(state, email){
   const grantedAt = (state.emailAccess && state.emailAccess[norm]) || 0;
   const expired = days > 0 && grantedAt > 0 && (Date.now() - grantedAt) > days * 86400000;
   return { member: true, grantedAt: grantedAt, expired: expired, accessDurationDays: days };
+}
+
+async function emailSignInLink(store, event, email, isMember){
+  const token = generateToken();
+  await store.setJSON('magic:' + token, { email: email, createdAt: Date.now() });
+  const host = event.headers['x-forwarded-host'] || event.headers.host;
+  const protocol = (event.headers['x-forwarded-proto'] || 'https');
+  const link = protocol + '://' + host + '/?magic=' + token;
+  await sendMagicLinkEmail(email, link, isMember);
+}
+async function loadState(store){
+  try { const st = await store.get(BLOB_KEY, { type: 'json' }); return (st && st.state) || {}; }
+  catch (e) { return {}; }
+}
+// What a proven member's browser receives: a pass + the paid door links.
+async function memberSessionPayload(store, state, email){
+  const info = memberInfo(state, email);
+  if (!info.member || info.expired) return Object.assign({ valid: false }, info);
+  return {
+    valid: true,
+    email: email,
+    grantedAt: info.grantedAt,
+    token: await makeMemberToken(store, email),
+    doors: paidDoorContent(state),
+  };
 }
 
 async function startTrialFor(store, email){
@@ -212,14 +290,8 @@ exports.handler = async function (event) {
         return { statusCode: 400, body: JSON.stringify({ error: 'Invalid email' }) };
       }
       try {
-        const token = generateToken();
-        await store.setJSON('magic:' + token, { email: email, createdAt: Date.now() });
-
-        const host = event.headers['x-forwarded-host'] || event.headers.host;
-        const protocol = (event.headers['x-forwarded-proto'] || 'https');
-        const link = protocol + '://' + host + '/?magic=' + token;
-
-        await sendMagicLinkEmail(email, link);
+        const st = await loadState(store);
+        await emailSignInLink(store, event, email, memberInfo(st, email).member);
 
         return {
           statusCode: 200,
@@ -256,6 +328,18 @@ exports.handler = async function (event) {
         await store.delete('magic:' + token);
 
         const email = record.email;
+        const st = await loadState(store);
+
+        // A paying member clicked their sign-in link: hand back a member pass.
+        const member = await memberSessionPayload(store, st, email);
+        if (member.valid) {
+          return {
+            statusCode: 200,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ success: true }, member, { member: true })),
+          };
+        }
+
         // Only start the clock if this email has never had one before —
         // this is the actual fix for "clear cookies, get a fresh trial":
         // the trial is tied to the email on the server, not the browser.
@@ -264,7 +348,7 @@ exports.handler = async function (event) {
         return {
           statusCode: 200,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ success: true, email: email, startedAt: trial.startedAt }),
+          body: JSON.stringify({ success: true, email: email, startedAt: trial.startedAt, memberExpired: !!member.expired }),
         };
       } catch (err) {
         console.error('verify-magic-link error:', err);
@@ -293,6 +377,12 @@ exports.handler = async function (event) {
         return { statusCode: 400, body: JSON.stringify({ error: 'Invalid email' }) };
       }
       try {
+        // Paying members always prove their email with a sign-in link, even
+        // when free previews skip verification.
+        if (memberInfo(siteState, email).member) {
+          await emailSignInLink(store, event, email, true);
+          return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: true, memberLinkSent: true }) };
+        }
         const trial = await startTrialFor(store, email);
         return {
           statusCode: 200,
@@ -305,14 +395,15 @@ exports.handler = async function (event) {
       }
     }
 
-    // Is this email a paying member? (Used by the sign-in box and on return
-    // visits.) Only answers about the one email asked — never lists anyone.
-    if (body.action === 'check-member') {
-      return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(memberInfo(siteState, body.email)),
-      };
+    // A returning member's browser shows its pass; if it's genuine and their
+    // access is still active, they get the paid door links again.
+    if (body.action === 'member-session') {
+      const email = await readMemberToken(store, body.token);
+      if (!email) {
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ valid: false }) };
+      }
+      const payload = await memberSessionPayload(store, siteState, email);
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
     }
 
     // After the Stripe redirect: did the Stripe webhook record a real payment
@@ -340,10 +431,21 @@ exports.handler = async function (event) {
           await store.setJSON('purchase:' + ref, purchase);
           return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', tierId: purchase.tierId, email: purchase.email }) };
         }
+        // Full access: the browser holding this checkout's reference is the
+        // buyer's, so it gets a member pass — once. (Later sign-ins use email links.)
+        if (purchase.passIssued) {
+          return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'access', alreadyUsed: true }) };
+        }
+        const member = await memberSessionPayload(store, siteState, purchase.email);
+        if (member.valid) {
+          purchase.passIssued = true;
+          purchase.passIssuedAt = Date.now();
+          await store.setJSON('purchase:' + ref, purchase);
+        }
         return {
           statusCode: 200,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(Object.assign({ paid: true, kind: 'access', email: purchase.email }, memberInfo(siteState, purchase.email))),
+          body: JSON.stringify(Object.assign({ paid: true, kind: 'access' }, member)),
         };
       } catch (err) {
         console.error('check-purchase error:', err);
@@ -435,6 +537,21 @@ exports.handler = async function (event) {
         });
         incoming.emails = keptEmails;
       }
+
+      if (!loadedAt && Array.isArray(incoming.doors)) {
+        // This tab only had the public copy, where paid door links are blank.
+        const oldDoors = {};
+        (siteState.doors || []).forEach(function (d) { if (d && d.id) oldDoors[d.id] = d; });
+        incoming.doors = incoming.doors.map(function (d) {
+          const old = d && oldDoors[d.id];
+          if (old && !d.isFree && (!d.url || !String(d.url).trim())) return Object.assign({}, d, { url: old.url });
+          return d;
+        });
+      }
+      incoming.doors = (incoming.doors || []).map(function (d) {
+        if (!d) return d;
+        const copy = Object.assign({}, d); delete copy.hasContent; return copy;
+      });
 
       const oldLeads = Array.isArray(siteState.freeEmails) ? siteState.freeEmails : [];
       const newLeads = Array.isArray(incoming.freeEmails) ? incoming.freeEmails : [];
