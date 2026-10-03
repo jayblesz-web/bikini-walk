@@ -138,6 +138,100 @@ async function recordFreeLead(store, email){
 // Member emails, their access dates, and free leads are private: visitors
 // get every other setting, but never these lists. Admin gets them through
 // the password-protected 'admin-load' action.
+// ---- R2 expiring video links ----
+// Door videos stored in a PRIVATE Cloudflare R2 bucket are handed out only as
+// links that stop working after a few hours, so copied links die. Needs these
+// Netlify variables: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+// R2_BUCKET (optional R2_PUBLIC_BASE = the bucket's old public base URL).
+// A door's video field can hold an r2.dev link, an R2_PUBLIC_BASE link, or
+// "r2:path/file.mp4". Anything else (e.g. Cloudinary) passes through unchanged.
+const crypto = require('crypto');
+
+const LINK_LIFETIME_SECONDS = 4 * 60 * 60; // 4 hours
+
+function r2Configured(){
+  return !!(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID &&
+            process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET);
+}
+
+// Returns the object key if this address points into the R2 bucket, else null.
+function r2KeyFor(address){
+  const a = String(address || '').trim();
+  if (!a) return null;
+  if (a.toLowerCase().indexOf('r2:') === 0) return a.slice(3).replace(/^\/+/, '');
+  let u;
+  try { u = new URL(a); } catch (e) { return null; }
+  const base = (process.env.R2_PUBLIC_BASE || '').trim().replace(/\/+$/, '');
+  let baseHost = '';
+  try { if (base) baseHost = new URL(base).host.toLowerCase(); } catch (e) {}
+  const host = u.host.toLowerCase();
+  if (/\.r2\.dev$/.test(host) || (baseHost && host === baseHost)) {
+    return decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+  }
+  // Direct S3-style address: https://<account>.r2.cloudflarestorage.com/<bucket>/<key>
+  if (/\.r2\.cloudflarestorage\.com$/.test(host)) {
+    const parts = u.pathname.replace(/^\/+/, '').split('/');
+    parts.shift(); // bucket
+    return decodeURIComponent(parts.join('/'));
+  }
+  return null;
+}
+
+function uriEncode(str){
+  return encodeURIComponent(str).replace(/[!'()*]/g, function (c) {
+    return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+  });
+}
+function hmac(key, data){ return crypto.createHmac('sha256', key).update(data, 'utf8').digest(); }
+function sha256hex(data){ return crypto.createHash('sha256').update(data, 'utf8').digest('hex'); }
+
+// AWS Signature V4 query-string presign (what R2's S3 API accepts).
+function presignR2(key, nowMs, lifetimeSeconds){
+  const account = process.env.R2_ACCOUNT_ID;
+  const bucket = process.env.R2_BUCKET;
+  const accessKey = process.env.R2_ACCESS_KEY_ID;
+  const secret = process.env.R2_SECRET_ACCESS_KEY;
+  const host = account + '.r2.cloudflarestorage.com';
+  const region = 'auto';
+  const now = new Date(nowMs || Date.now());
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, ''); // YYYYMMDDTHHMMSSZ
+  const dateStamp = amzDate.slice(0, 8);
+  const scope = dateStamp + '/' + region + '/s3/aws4_request';
+  const canonicalUri = '/' + uriEncode(bucket) + '/' + key.split('/').map(uriEncode).join('/');
+
+  const params = {
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Content-Sha256': 'UNSIGNED-PAYLOAD',
+    'X-Amz-Credential': accessKey + '/' + scope,
+    'X-Amz-Date': amzDate,
+    'X-Amz-Expires': String(lifetimeSeconds || LINK_LIFETIME_SECONDS),
+    'X-Amz-SignedHeaders': 'host',
+    'x-id': 'GetObject',
+  };
+  const canonicalQuery = Object.keys(params).sort()
+    .map(function (k) { return uriEncode(k) + '=' + uriEncode(params[k]); }).join('&');
+  const canonicalRequest = ['GET', canonicalUri, canonicalQuery, 'host:' + host + '\n', 'host', 'UNSIGNED-PAYLOAD'].join('\n');
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
+  const kDate = hmac('AWS4' + secret, dateStamp);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, 's3');
+  const kSigning = hmac(kService, 'aws4_request');
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
+  return 'https://' + host + canonicalUri + '?' + canonicalQuery + '&X-Amz-Signature=' + signature;
+}
+
+// The link a viewer should actually get for a stored door address.
+function playableUrl(address){
+  const key = r2KeyFor(address);
+  if (!key) return address;                // not R2 — unchanged
+  if (!r2Configured()) {
+    console.error('r2-links: R2 env vars missing; serving the stored address unchanged');
+    return address;
+  }
+  return presignR2(key);
+}
+
+
 const PRIVATE_KEYS = ['emails', 'emailAccess', 'freeEmails'];
 function publicState(state){
   if(!state) return state;
@@ -148,16 +242,26 @@ function publicState(state){
   if (Array.isArray(copy.doors)) {
     copy.doors = copy.doors.map(function (d) {
       const has = !!(d && d.url && String(d.url).trim());
-      if (!d || d.isFree) return Object.assign({}, d, { hasContent: has });
+      if (!d || d.isFree) return Object.assign({}, d, { url: has ? playableUrl(d.url) : (d && d.url), hasContent: has });
       return Object.assign({}, d, { url: '', hasContent: has });
     });
   }
   return copy;
 }
+// Admin keeps the stored address for editing, plus a playable link for previews.
+function withPlayUrls(state){
+  const copy = Object.assign({}, state);
+  copy.doors = (Array.isArray(state.doors) ? state.doors : []).map(function (d) {
+    if (!d || !d.url) return d;
+    const play = playableUrl(d.url);
+    return play !== d.url ? Object.assign({}, d, { playUrl: play, playUrlFor: d.url }) : d;
+  });
+  return copy;
+}
 function paidDoorContent(state){
   return (Array.isArray(state.doors) ? state.doors : [])
     .filter(function (d) { return d && d.url && String(d.url).trim(); })
-    .map(function (d) { return { id: d.id, url: d.url }; });
+    .map(function (d) { return { id: d.id, url: playableUrl(d.url) }; });
 }
 
 // ---- Member passes (signed tokens) ----
@@ -461,7 +565,7 @@ exports.handler = async function (event) {
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: siteState, loadedAt: Date.now() }),
+        body: JSON.stringify({ state: withPlayUrls(siteState), loadedAt: Date.now() }),
       };
     }
 
@@ -550,7 +654,7 @@ exports.handler = async function (event) {
       }
       incoming.doors = (incoming.doors || []).map(function (d) {
         if (!d) return d;
-        const copy = Object.assign({}, d); delete copy.hasContent; return copy;
+        const copy = Object.assign({}, d); delete copy.hasContent; delete copy.playUrl; delete copy.playUrlFor; return copy;
       });
 
       const oldLeads = Array.isArray(siteState.freeEmails) ? siteState.freeEmails : [];
