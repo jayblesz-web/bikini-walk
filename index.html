@@ -1373,6 +1373,7 @@ async function loadAdminPrivate(){
     state.emailAccess = full.emailAccess || {};
     state.freeEmails = Array.isArray(full.freeEmails) ? full.freeEmails : [];
     if(Array.isArray(full.doors)) state.doors = full.doors; // includes paid door links
+    playLinksAt = Date.now();
     privateLoadedAt = data.loadedAt || Date.now();
   }catch(e){
     console.error('admin-load failed:', e);
@@ -2249,7 +2250,36 @@ function startPreviewFromDoor(){
 function closeUnlockCTA(){
   document.getElementById('unlockCTAModal').classList.remove('active');
 }
-function openDoor(doorId){
+// R2 video links expire after 4 hours, so a page left open longer fetches
+// fresh ones before playing.
+let playLinksAt = Date.now();
+const PLAY_LINK_REFRESH_MS = 3 * 60 * 60 * 1000;
+async function refreshPlayLinks(){
+  if(adminMode){ await loadAdminPrivate(); }
+  else{
+    await syncSharedState();
+    let token = '';
+    try{ token = localStorage.getItem('bw_member_token') || ''; }catch(e){}
+    if(token){ restoreMemberSession(); await memberSessionReady; }
+  }
+  playLinksAt = Date.now();
+}
+// What to actually play: Admin's copy carries a separate expiring link for
+// R2 videos (playUrl); visitors and members already receive playable links.
+function playSrc(door){
+  return (door.playUrl && door.playUrlFor === door.url) ? door.playUrl : door.url;
+}
+function looksLikeR2(url){
+  return /\.r2\.dev\/|^r2:|\.r2\.cloudflarestorage\.com\//i.test(String(url || ''));
+}
+async function openDoor(doorId){
+  if(Date.now() - playLinksAt > PLAY_LINK_REFRESH_MS){
+    showToast('Loading…');
+    await refreshPlayLinks();
+  }
+  openDoorNow(doorId);
+}
+function openDoorNow(doorId){
   const door = state.doors.find(d => d.id === doorId);
   if(!door || !door.url || !door.url.trim()){
     // A member whose paid links haven't arrived yet (e.g. very slow connection).
@@ -2285,10 +2315,10 @@ function openDoor(doorId){
     stageContent.innerHTML =
       '<div style="position:relative;flex-shrink:0;width:min(90vw,calc(90vh*9/16));max-height:90vh;aspect-ratio:9/16;background:#000;margin:0 auto;display:flex;align-items:center;justify-content:center;">' +
         '<div id="doorVideoStatus" style="color:var(--muted);font-family:\'Space Mono\',monospace;font-size:.75rem;text-align:center;padding:1.5rem;">Loading video…</div>' +
-        '<video id="doorStageVideo" src="' + door.url + '" controls playsinline preload="auto" controlsList="nodownload" oncontextmenu="return false;" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;"></video>' +
+        '<video id="doorStageVideo" src="' + escapeHtml(playSrc(door)) + '" controls playsinline preload="auto" controlsList="nodownload" oncontextmenu="return false;" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;"></video>' +
       '</div>';
   }else if(door.type === 'image'){
-    stageContent.innerHTML = '<img src="' + door.url + '" oncontextmenu="return false;" draggable="false" style="width:100%;max-height:90vh;object-fit:contain;display:block;margin:0 auto;user-select:none;-webkit-user-drag:none;"/>';
+    stageContent.innerHTML = '<img src="' + escapeHtml(playSrc(door)) + '" oncontextmenu="return false;" draggable="false" style="width:100%;max-height:90vh;object-fit:contain;display:block;margin:0 auto;user-select:none;-webkit-user-drag:none;"/>';
   }else if(door.type === 'message'){
     stageContent.innerHTML = '<div style="max-width:480px;margin:0 auto;padding:1.5rem;background:var(--surface2);border:1px solid var(--gold);border-radius:14px;text-align:center;font-size:1.05rem;line-height:1.7;">' + escapeHtml(door.url) + '</div>';
   }else{
@@ -3734,8 +3764,12 @@ function previewDoorAdmin(doorId){
   const door = state.doors.find(d => d.id === doorId);
   if(!door) return;
   const urlEl = document.getElementById('door-url-' + doorId);
-  const url = urlEl ? urlEl.value.trim() : door.url;
-  if(!url){ showToast('⚠ Add content to this door first.'); return; }
+  const typed = urlEl ? urlEl.value.trim() : door.url;
+  if(!typed){ showToast('⚠ Add content to this door first.'); return; }
+  // R2 videos play through an expiring link made by the server for the saved address.
+  let url = typed;
+  if(door.playUrl && door.playUrlFor === typed) url = door.playUrl;
+  else if(looksLikeR2(typed)) showToast('New R2 link: click Save, then close and reopen Admin to preview it (needed once the bucket is private).');
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;';
   modal.onclick = function(e){ if(e.target===modal) document.body.removeChild(modal); };
