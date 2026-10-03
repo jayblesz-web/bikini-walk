@@ -400,9 +400,12 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
     <div class="star">★</div>
     <div class="activation-tag">Payment Successful!</div>
     <h3>Welcome to Bikini Walk</h3>
-    <p>Enter your email to activate your access instantly.</p>
-    <input id="activationEmail" class="activation-input" type="email" placeholder="your@email.com"/>
-    <button class="activation-btn" onclick="activateEmail()">★ Activate My Access</button>
+    <div id="activationChecking"><p>Confirming your payment with Stripe… this takes a few seconds.</p></div>
+    <div id="activationEmailStep" style="display:none;">
+      <p>Enter the email you used at checkout to activate your access.</p>
+      <input id="activationEmail" class="activation-input" type="email" placeholder="your@email.com"/>
+      <button class="activation-btn" id="activationBtn" onclick="activateEmail()">★ Activate My Access</button>
+    </div>
     <div class="activation-error" id="activationError">Please enter a valid email.</div>
     <div class="activation-success" id="activationSuccess">✓ Access activated! Taking you inside...</div>
   </div>
@@ -751,7 +754,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <div class="admin-section-title">Purchase / Stripe Settings</div>
         <label class="admin-label">Stripe Payment Link (full price, new customers)</label>
         <input class="admin-input" id="aStripeUrl" placeholder="https://buy.stripe.com/..."/>
-        <p style="color:var(--muted);font-size:.75rem;margin:-.4rem 0 .9rem;">A success_url is appended automatically so Stripe sends people back here to activate access — no manual redirect setup needed.</p>
+        <p style="color:var(--muted);font-size:.75rem;margin:-.4rem 0 .9rem;">In each Stripe Payment Link → "After payment" → "Don't show confirmation page", set the redirect to <b>https://bikiniwalk.net/?bw=success</b> (chat packs: <b>https://bikiniwalk.net/?bwchat=success</b>). Access unlocks only after the Stripe webhook confirms the payment.</p>
 
         <label class="admin-label">Renewal Stripe Link (optional discount for returning customers)</label>
         <input class="admin-input" id="aRenewalStripeUrl" placeholder="https://buy.stripe.com/... (leave blank to reuse the link above)"/>
@@ -1166,24 +1169,42 @@ function isTrialActive(){
 // within the access window (accessDurationDays since it was granted).
 // A missing timestamp (e.g. imported from an older backup) is treated as
 // "grant it now" rather than either permanently valid or already expired.
+// Visitors no longer receive the member list (it's private on the server),
+// so a visitor's own membership is confirmed by the server and remembered
+// here: { email, grantedAt }. Admin still has the full list in state.emails.
+let memberCache = { email: '', grantedAt: 0 };
+function grantedAtFor(norm){
+  if(memberCache.email === norm && memberCache.grantedAt) return memberCache.grantedAt;
+  return (state.emailAccess && state.emailAccess[norm]) || 0;
+}
 function isAccessValid(email){
   const norm = (email || '').trim().toLowerCase();
   if(!norm) return false;
-  const approved = state.emails.map(e => e.trim().toLowerCase());
-  if(approved.indexOf(norm) === -1) return false;
+  const approved = (state.emails || []).map(e => e.trim().toLowerCase());
+  if(memberCache.email !== norm && approved.indexOf(norm) === -1) return false;
   if(!state.accessDurationDays || state.accessDurationDays <= 0) return true; // 0 = never expires
-  let grantedAt = state.emailAccess[norm];
-  if(!grantedAt){
-    grantedAt = Date.now();
-    state.emailAccess[norm] = grantedAt;
-    saveState();
-  }
+  const grantedAt = grantedAtFor(norm);
+  if(!grantedAt) return true; // no date on record (old import) — treat as active
   const daysElapsed = (Date.now() - grantedAt) / (1000 * 60 * 60 * 24);
   return daysElapsed < state.accessDurationDays;
 }
+function rememberMember(email, grantedAt){
+  memberCache = { email: (email || '').trim().toLowerCase(), grantedAt: grantedAt || 0 };
+  try{ sessionStorage.setItem('bw_granted_at', String(memberCache.grantedAt)); }catch(e){}
+}
+// Asks the server whether an email is a paying member.
+async function checkMemberOnServer(email){
+  const res = await fetch('/.netlify/functions/site-state', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'check-member', email: email }),
+  });
+  if(!res.ok) throw new Error('check-member failed: ' + res.status);
+  return res.json();
+}
 function daysRemaining(email){
   const norm = (email || '').trim().toLowerCase();
-  const grantedAt = state.emailAccess[norm];
+  const grantedAt = grantedAtFor(norm);
   if(!grantedAt || !state.accessDurationDays) return null;
   const remaining = state.accessDurationDays - (Date.now() - grantedAt) / (1000 * 60 * 60 * 24);
   return Math.max(0, Math.ceil(remaining));
@@ -1221,9 +1242,12 @@ function loadLocalState(){
 
   try{
     const savedEmail = sessionStorage.getItem('bw_email') || '';
-    if(savedEmail && isAccessValid(savedEmail)){
-      unlocked = true;
-      unlockedEmail = savedEmail;
+    if(savedEmail){
+      rememberMember(savedEmail, Number(sessionStorage.getItem('bw_granted_at')) || 0);
+      if(isAccessValid(savedEmail)){
+        unlocked = true;
+        unlockedEmail = savedEmail;
+      }
     }
   }catch(e){}
 }
@@ -1244,6 +1268,10 @@ async function syncSharedState(){
       const data = await res.json();
       if(data.state){
         state = Object.assign(state, data.state);
+        if(!adminMode){
+          // Private lists only come from 'admin-load'; don't keep stale copies.
+          state.emails = []; state.emailAccess = {}; state.freeEmails = [];
+        }
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, password: ADMIN_PASSWORD })); }catch(e){}
         // Re-render everything now that fresher content may have arrived.
         renderFrontPage();
@@ -1277,6 +1305,7 @@ function saveState(newPasswordOverride){
       action: 'save',
       password: ADMIN_PASSWORD,
       newPassword: newPasswordOverride || undefined,
+      privateLoadedAt: privateLoadedAt,
       state: state,
     }),
   }).then(function(res){
@@ -1288,6 +1317,28 @@ function saveState(newPasswordOverride){
     console.error('shared save failed:', err);
     showToast('⚠ Saved on this device only — sync to the live site failed');
   });
+}
+// Admin: loads the private lists (members, access dates, free leads).
+let privateLoadedAt = 0;
+async function loadAdminPrivate(){
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin-load', password: ADMIN_PASSWORD }),
+    });
+    if(!res.ok) throw new Error('status ' + res.status);
+    const data = await res.json();
+    const full = data.state || {};
+    state.emails = Array.isArray(full.emails) ? full.emails : [];
+    state.emailAccess = full.emailAccess || {};
+    state.freeEmails = Array.isArray(full.freeEmails) ? full.freeEmails : [];
+    privateLoadedAt = data.loadedAt || Date.now();
+  }catch(e){
+    console.error('admin-load failed:', e);
+    privateLoadedAt = 0; // server will then leave the member list untouched on save
+    showToast('⚠ Could not load member emails — they will not be changed by saves');
+  }
 }
 function setUnlocked(email){
   unlocked = true;
@@ -1338,13 +1389,24 @@ function renderMemberNotice(text, treatFirstLineAsTitle){
       if(inList){ html += '</ul>'; inList = false; }
       return;
     }
-    if(trimmed.indexOf('* ') === 0){
+    if(trimmed.indexOf('* ') === 0 || trimmed.indexOf('- ') === 0){
       if(!inList){ html += '<ul>'; inList = true; }
       html += '<li>' + applyInlineFormatting(escapeHtml(trimmed.slice(2))) + '</li>';
       firstLine = false;
       return;
     }
     if(inList){ html += '</ul>'; inList = false; }
+    // "## Heading" style lines (common when text is pasted from other tools):
+    // show them as headings instead of printing the # symbols.
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.*)$/);
+    if(headingMatch){
+      const headingText = applyInlineFormatting(escapeHtml(headingMatch[1]));
+      html += (firstLine && treatFirstLineAsTitle)
+        ? '<div class="notice-title">' + headingText + '</div>'
+        : '<p style="font-weight:800;color:var(--text);margin-top:.6rem;">' + headingText + '</p>';
+      firstLine = false;
+      return;
+    }
     if(firstLine && treatFirstLineAsTitle){
       html += '<div class="notice-title">' + applyInlineFormatting(escapeHtml(trimmed)) + '</div>';
       firstLine = false;
@@ -1571,13 +1633,15 @@ async function checkGateEmail(){
 
   // Already a paying member — give them full access immediately, no need
   // for a verification email at all since they're already a known customer.
-  const approved = state.emails.map(e => e.trim().toLowerCase());
-  if(approved.indexOf(email) > -1){
-    if(!isAccessValid(email)){
+  let member = null;
+  try{ member = await checkMemberOnServer(email); }catch(e){ console.error(e); }
+  if(member && member.member){
+    if(member.expired){
       error.innerHTML = 'Your access has expired' + (state.accessDurationDays ? ' (' + state.accessDurationDays + '-day limit reached)' : '') + '. <a href="#" onclick="goToStripe(\'renewal\');return false;">Purchase again to renew</a>.';
       error.style.display = 'block';
       return;
     }
+    rememberMember(email, member.grantedAt);
     setUnlocked(email);
     error.style.display = 'none';
     closeGateLogin();
@@ -1649,7 +1713,6 @@ async function checkGateEmail(){
   sendBtn.textContent = idleLabel;
 }
 function goToStripe(kind){
-  // ported from openVipSubscribe() — appends success_url so Stripe redirects back here
   // kind 'renewal' uses the cheaper renewal link if one is set, otherwise falls back to the main link
   let url = state.stripeUrl;
   if(kind === 'renewal' && state.renewalStripeUrl){
@@ -1659,24 +1722,90 @@ function goToStripe(kind){
     showToast('⚠ No Stripe link set yet — add one in Admin');
     return;
   }
-  const successUrl = encodeURIComponent(window.location.origin + window.location.pathname + '?bw=success');
-  const separator = url.includes('?') ? '&' : '?';
-  window.open(url + separator + 'success_url=' + successUrl, '_blank');
+  // A random reference rides along to Stripe (client_reference_id). The
+  // Stripe webhook records the payment under it, and when the buyer comes
+  // back this browser asks the server whether that reference was paid.
+  const ref = 'acc_' + randomRef();
+  try{ localStorage.setItem('bw_pending_access', JSON.stringify({ ref: ref, at: Date.now() })); }catch(e){}
+  window.open(stripeLinkWith(url, ref), '_blank');
 }
+function randomRef(){
+  const bytes = new Uint8Array(12);
+  (window.crypto || window.msCrypto).getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+function stripeLinkWith(url, ref){
+  const separator = url.includes('?') ? '&' : '?';
+  let out = url + separator + 'client_reference_id=' + encodeURIComponent(ref);
+  const knownEmail = freeEnteredEmail || unlockedEmail;
+  if(knownEmail && knownEmail.includes('@') && knownEmail !== 'admin-preview') out += '&prefilled_email=' + encodeURIComponent(knownEmail);
+  return out;
+}
+// Asks the server whether the Stripe webhook recorded a payment for ref.
+async function checkPurchase(ref){
+  const res = await fetch('/.netlify/functions/site-state', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'check-purchase', ref: ref }),
+  });
+  if(!res.ok) throw new Error('check-purchase failed: ' + res.status);
+  return res.json();
+}
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-// Handle return from Stripe: ?bw=success — ported from checkVipSuccessRedirect()
-function checkStripeRedirect(){
+// Handle return from Stripe: ?bw=success. Nothing unlocks from the URL
+// alone — the server must confirm the Stripe webhook recorded the payment.
+async function checkStripeRedirect(){
   const params = new URLSearchParams(window.location.search);
-  if(params.get('bw') === 'success'){
-    // They're almost certainly already a free-entered visitor at this point
-    // (that's how they got to the "Unlock" button) — pre-fill their email
-    // so confirming takes one click instead of retyping it.
-    let storedFreeEmail = '';
-    try{ storedFreeEmail = localStorage.getItem('bw_free_email') || ''; }catch(e){}
-    const emailInput = document.getElementById('activationEmail');
-    if(emailInput && storedFreeEmail) emailInput.value = storedFreeEmail;
-    document.getElementById('activationOverlay').classList.add('active');
+  if(params.get('bw') !== 'success') return;
+  if(window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname);
+
+  let pending = null;
+  try{ pending = JSON.parse(localStorage.getItem('bw_pending_access') || 'null'); }catch(e){}
+
+  setActivationStep('checking');
+  document.getElementById('activationOverlay').classList.add('active');
+
+  if(pending && pending.ref){
+    // The webhook usually lands within a few seconds of the redirect.
+    for(let i = 0; i < 12; i++){
+      try{
+        const r = await checkPurchase(pending.ref);
+        if(r.paid && r.member && !r.expired){
+          try{ localStorage.removeItem('bw_pending_access'); }catch(e){}
+          finishActivation(r.email, r.grantedAt);
+          return;
+        }
+      }catch(e){ console.error(e); }
+      await sleep(2500);
+    }
   }
+  // No reference on this device (paid on another phone/browser) or not
+  // confirmed yet: let them sign in with the email they used at checkout.
+  let storedFreeEmail = '';
+  try{ storedFreeEmail = localStorage.getItem('bw_free_email') || ''; }catch(e){}
+  const emailInput = document.getElementById('activationEmail');
+  if(emailInput && storedFreeEmail) emailInput.value = storedFreeEmail;
+  setActivationStep('email');
+}
+function setActivationStep(step){
+  const checking = step === 'checking';
+  document.getElementById('activationChecking').style.display = checking ? 'block' : 'none';
+  document.getElementById('activationEmailStep').style.display = checking ? 'none' : 'block';
+  document.getElementById('activationError').style.display = 'none';
+  document.getElementById('activationSuccess').style.display = 'none';
+}
+function finishActivation(email, grantedAt){
+  rememberMember(email, grantedAt);
+  setUnlocked(email);
+  setActivationStep('email');
+  document.getElementById('activationEmailStep').style.display = 'none';
+  document.getElementById('activationSuccess').style.display = 'block';
+  setTimeout(function(){
+    document.getElementById('activationOverlay').classList.remove('active');
+    closeGateLogin();
+    openContentRoom();
+  }, 1600);
 }
 // Handles someone arriving via the magic-link email (?magic=TOKEN). Confirms
 // the token server-side, which both proves they really own this email and
@@ -1714,37 +1843,39 @@ async function checkMagicLinkRedirect(){
     showToast('⚠ Connection error verifying your link — please try again.');
   }
 }
-function activateEmail(){
-  // ported from activateVipEmail() — grantAccess starts the access-duration clock now
+// Fallback sign-in on the "payment successful" screen: only works if the
+// Stripe webhook has already added this email as a paying member.
+async function activateEmail(){
   const emailInput = document.getElementById('activationEmail');
   const error = document.getElementById('activationError');
-  const success = document.getElementById('activationSuccess');
+  const btn = document.getElementById('activationBtn');
   const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
 
   if(!email || !email.includes('@')){
+    error.textContent = 'Please enter a valid email.';
     error.style.display = 'block';
     return;
   }
   error.style.display = 'none';
-
-  grantAccess(email);
-  saveState(); // local copy on this device
-  fetch('/.netlify/functions/site-state', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'activate-paid', email: email }),
-  }).catch(function(err){ console.error('activate-paid failed:', err); });
-
-  setUnlocked(email);
-  success.style.display = 'block';
-
-  setTimeout(function(){
-    document.getElementById('activationOverlay').classList.remove('active');
-    if(window.history.replaceState){
-      window.history.replaceState({}, document.title, window.location.pathname);
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try{
+    const r = await checkMemberOnServer(email);
+    if(r.member && !r.expired){
+      finishActivation(email, r.grantedAt);
+    }else if(r.member && r.expired){
+      error.textContent = 'That email\'s access has expired. If you just renewed, wait a minute and try again.';
+      error.style.display = 'block';
+    }else{
+      error.textContent = "We couldn't find a payment for that email yet. Use the same email you entered at checkout. If you just paid, wait a minute and try again.";
+      error.style.display = 'block';
     }
-    openContentRoom();
-  }, 2000);
+  }catch(e){
+    error.textContent = 'Connection error. Please try again.';
+    error.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = '★ Activate My Access';
 }
 
 // ==========================================================
@@ -2425,19 +2556,44 @@ function goToChatStripe(tierId){
     showToast('⚠ No Stripe link set for this pack yet — add one in Admin');
     return;
   }
-  const successUrl = encodeURIComponent(window.location.origin + window.location.pathname + '?bwchat=success&tier=' + tierId);
-  const separator = tier.stripeUrl.includes('?') ? '&' : '?';
-  window.open(tier.stripeUrl + separator + 'success_url=' + successUrl, '_blank');
+  const safeTier = String(tierId).replace(/[^A-Za-z0-9-]/g, '-');
+  const ref = 'chat_' + safeTier + '_' + randomRef();
+  try{ localStorage.setItem('bw_pending_chat', JSON.stringify({ ref: ref, tierId: tierId, at: Date.now() })); }catch(e){}
+  window.open(stripeLinkWith(tier.stripeUrl, ref), '_blank');
 }
-// Called on page load — detects the return trip from Stripe and credits the pack.
-function checkChatStripeRedirect(){
+// Called on page load. Credits a chat pack only after the server confirms
+// the Stripe webhook recorded the payment (each payment credits once).
+async function checkChatStripeRedirect(){
   const params = new URLSearchParams(window.location.search);
-  if(params.get('bwchat') === 'success'){
-    const tierId = params.get('tier');
-    window.history.replaceState({}, document.title, window.location.pathname);
-    const tier = state.chatTiers.find(t => t.id === tierId);
-    if(tier) applyChatTierPurchase(tier);
+  const returned = params.get('bwchat') === 'success';
+  if(returned && window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname);
+
+  let pending = null;
+  try{ pending = JSON.parse(localStorage.getItem('bw_pending_chat') || 'null'); }catch(e){}
+  if(!pending || !pending.ref) return;
+  // Forget abandoned checkouts after a day.
+  if(Date.now() - (pending.at || 0) > 24 * 60 * 60 * 1000){
+    try{ localStorage.removeItem('bw_pending_chat'); }catch(e){}
+    return;
   }
+  const tries = returned ? 12 : 1; // quietly re-check once on later visits
+  for(let i = 0; i < tries; i++){
+    try{
+      const r = await checkPurchase(pending.ref);
+      if(r.paid){
+        try{ localStorage.removeItem('bw_pending_chat'); }catch(e){}
+        if(r.problem || r.alreadyClaimed){
+          if(returned) showToast(r.alreadyClaimed ? 'This chat pack was already added.' : '⚠ Payment received but the pack did not match — please contact us.');
+          return;
+        }
+        const tier = state.chatTiers.find(t => t.id === r.tierId);
+        if(tier) applyChatTierPurchase(tier);
+        return;
+      }
+    }catch(e){ console.error(e); }
+    if(i < tries - 1) await sleep(2500);
+  }
+  if(returned) showToast("⚠ We couldn't confirm your payment yet. Refresh the page in a minute.");
 }
 function applyChatTierPurchase(tier){
   loadChatCredits();
@@ -2653,6 +2809,7 @@ async function openAdminGate(){
     // session left open for a while could later overwrite a customer's
     // purchase that came in while the tab was just sitting there.
     await syncSharedState();
+    await loadAdminPrivate();
     renderAdminPanel();
   }
 }
@@ -2684,6 +2841,7 @@ async function adminLogin(){
     document.getElementById('adminLogin').style.display = 'none';
     document.getElementById('adminPanel').style.display = 'block';
     await syncSharedState(); // same freshness guarantee as re-opening Admin above
+    await loadAdminPrivate();
     renderAdminPanel();
   }else{
     err.style.display = 'block';
