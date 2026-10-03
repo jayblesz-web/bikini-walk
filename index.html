@@ -167,6 +167,26 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 /* footer modals — Contact and Accessibility Statement share this pattern */
 #contactModal,#accessibilityModal,#unlockCTAModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:9999;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;}
 #contactModal.active,#accessibilityModal.active,#unlockCTAModal.active{display:flex;}
+/* ===== Unlock pop-up (photo + live offer) ===== */
+#unlockCTAModal{padding:1rem;}
+.ucta-card{position:relative;width:100%;max-width:430px;margin:auto;background:#000;border-radius:20px;overflow:hidden;border:1px solid rgba(255,64,150,.35);box-shadow:0 0 40px rgba(255,40,140,.18);}
+.ucta-photo{position:relative;width:100%;aspect-ratio:900/560;background:#14060d center top/cover no-repeat;}
+.ucta-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0) 45%,rgba(0,0,0,.75) 78%,#000 100%);}
+.ucta-close{position:absolute;top:.7rem;right:.7rem;z-index:3;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.6);border:1.5px solid var(--gold);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.ucta-body{position:relative;z-index:2;margin-top:-2.6rem;padding:0 1.1rem 1.2rem;text-align:center;}
+.ucta-line1{font-family:'Syne',sans-serif;font-weight:800;color:#f5c842;font-size:clamp(1rem,4.6vw,1.2rem);letter-spacing:.01em;}
+.ucta-line2{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:clamp(1.45rem,7vw,1.9rem);line-height:1.08;margin:.35rem 0 1rem;}
+.ucta-glow{color:#ff5fb0;text-shadow:0 0 12px rgba(255,64,160,.85),0 0 28px rgba(255,64,160,.55);}
+.ucta-offer{border:1px solid rgba(255,120,150,.45);border-radius:16px;background:linear-gradient(180deg,#140a0c,#070405);padding:1.1rem .9rem 1rem;box-shadow:inset 0 0 24px rgba(255,64,150,.08);}
+.ucta-title{display:flex;align-items:center;justify-content:center;gap:.55rem;font-family:'Syne',sans-serif;font-weight:800;color:#f5c842;font-size:clamp(1.25rem,6vw,1.6rem);}
+.ucta-title svg{width:1.6rem;height:auto;flex-shrink:0;}
+.ucta-sub{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:.95rem;margin-top:.15rem;}
+.ucta-desc{color:#d9d4cc;font-size:.88rem;line-height:1.45;margin:.55rem 0 .85rem;}
+.ucta-pill{border:1.5px solid #f5c842;border-radius:12px;color:#f5c842;font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(.66rem,3.1vw,.85rem);padding:.6rem .4rem;line-height:1.5;margin-bottom:.9rem;}
+.ucta-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:.6rem;background:linear-gradient(180deg,#ff3d95,#e0136d);color:#fff;border:1px solid rgba(255,170,210,.6);border-radius:14px;padding:1rem .8rem;font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1rem,4.8vw,1.2rem);letter-spacing:.02em;cursor:pointer;box-shadow:0 0 22px rgba(255,40,140,.55);transition:transform .15s,box-shadow .15s;}
+.ucta-btn:hover{transform:translateY(-1px);box-shadow:0 0 30px rgba(255,40,140,.75);}
+.ucta-btn svg{width:1.1rem;height:auto;}
+.ucta-later{background:none;border:none;color:var(--muted);font-size:.8rem;margin-top:.8rem;cursor:pointer;text-decoration:underline;font-family:inherit;}
 .door-lock-overlay{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.8);border:1px solid var(--gold);color:var(--gold);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;z-index:4;}
 /* Square "photo layer" sized exactly like the cover-cropped door photo, so the
    plaque number and padlock sit on the same spot of the photo at any tile size. */
@@ -406,19 +426,27 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 <!-- Shown after closing a free door, or tapping a locked door, to prompt the upgrade.
      Text swaps depending on whether the trial is still running or has expired. -->
 <div id="unlockCTAModal">
-  <button class="poster-modal-close" onclick="closeUnlockCTA()">✕</button>
-  <div class="footer-modal-box" style="text-align:center;">
-    <div id="unlockCTAActiveTrial">
-      <div style="font-size:1.05rem;font-weight:900;color:var(--gold);margin-bottom:.4rem;">🔥 You've only opened <span id="unlockCTAOpenedCount">1</span> door.</div>
-      <div style="font-size:1.4rem;font-weight:900;margin-bottom:1.3rem;"><span id="unlockCTARemainingCount">0</span>+ more doors are waiting.</div>
+  <div class="ucta-card" role="dialog" aria-modal="true" aria-labelledby="uctaTitle">
+    <button class="ucta-close" onclick="closeUnlockCTA()" aria-label="Close">✕</button>
+    <div class="ucta-photo" id="uctaPhoto" role="img" aria-label="VYRA"></div>
+    <div class="ucta-body">
+      <div class="ucta-line1" id="uctaLine1">🔥 You've only opened 1 door.</div>
+      <div class="ucta-line2"><span id="uctaLine2">23+ more doors are</span><br><span class="ucta-glow">waiting.</span></div>
+      <div class="ucta-offer">
+        <div class="ucta-title" id="uctaTitle">
+          <svg viewBox="0 0 40 52" aria-hidden="true"><path d="M10 22V14a10 10 0 0 1 20 0v8" fill="none" stroke="#f5c842" stroke-width="5" stroke-linecap="round"/><rect x="3" y="21" width="34" height="29" rx="5" fill="#f5c842"/><circle cx="20" cy="33" r="4" fill="#2a2410"/><rect x="18.2" y="34" width="3.6" height="9" rx="1.5" fill="#2a2410"/></svg>
+          Unlock Bikini Walk
+        </div>
+        <div class="ucta-sub" id="uctaSub">3-Day Digital Access</div>
+        <div class="ucta-desc" id="uctaDesc">Access to Bikini Walk's digital fashion and entertainment experience for 3 days.</div>
+        <div class="ucta-pill" id="uctaPill">$4.99 &nbsp;•&nbsp; One-Time Payment &nbsp;•&nbsp; No Subscription</div>
+        <button class="ucta-btn" onclick="goToStripe()">
+          <svg viewBox="0 0 40 52" aria-hidden="true"><path d="M10 22V14a10 10 0 0 1 20 0v8" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><rect x="3" y="21" width="34" height="29" rx="5" fill="#fff"/><circle cx="20" cy="33" r="4" fill="#e0136d"/><rect x="18.2" y="34" width="3.6" height="9" rx="1.5" fill="#e0136d"/></svg>
+          UNLOCK ALL DOORS ›
+        </button>
+        <button class="ucta-later" onclick="closeUnlockCTA()">Maybe later</button>
+      </div>
     </div>
-    <div id="unlockCTAExpiredTrial" style="display:none;">
-      <div style="font-size:1.6rem;margin-bottom:.4rem;">🔒</div>
-      <div style="font-size:1.1rem;font-weight:900;color:var(--gold);margin-bottom:.4rem;">THIS DOOR IS LOCKED</div>
-      <div style="font-size:.95rem;color:var(--muted);margin-bottom:.4rem;">Your free preview has ended.</div>
-      <div style="font-size:1.25rem;font-weight:900;margin-bottom:1.3rem;">Unlock all <span id="unlockCTATotalDoors">24</span>+ doors and continue the experience.</div>
-    </div>
-    <button class="chat-tier-btn" style="width:100%;justify-content:center;text-align:center;" onclick="goToStripe()">🔓 Unlock Bikini Walk — Get Full Access</button>
   </div>
 </div>
 
@@ -726,6 +754,21 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
         <p style="color:var(--muted);font-size:.72rem;margin:-.4rem 0 .5rem;">First line becomes a bold title. Leave a blank line between paragraphs. Start a line with "* " to make it a bullet point.</p>
         <textarea class="admin-textarea" id="aDisclaimer" style="min-height:220px;font-family:'Space Mono',monospace;font-size:.78rem;" placeholder="Member Access Notice title...&#10;&#10;A paragraph...&#10;&#10;* A bullet point&#10;* Another bullet point"></textarea>
         <button class="admin-btn" onclick="saveStripeSettings()">💾 Save Settings</button>
+      </div>
+
+      <div class="admin-section">
+        <div class="admin-section-title">🔓 Unlock pop-up</div>
+        <p style="color:var(--muted);font-size:.78rem;margin-bottom:.8rem;">Shown when a free video ends or someone taps a locked door. Door counts and the "X-Day" access text update automatically from your doors and Access duration.</p>
+        <label class="admin-label">Price shown</label>
+        <input class="admin-input" id="aAccessPrice" placeholder="$4.99" oninput="state.accessPriceLabel=this.value;saveState();"/>
+        <label class="admin-label">Photo after the free video (Cloudinary URL, blank = built-in VYRA photo)</label>
+        <input class="admin-input" id="aUnlockImage" placeholder="https://res.cloudinary.com/..." oninput="state.unlockImage=this.value.trim();saveState();"/>
+        <label class="admin-label">Photo when a locked door is tapped (Cloudinary URL, blank = built-in hallway photo)</label>
+        <input class="admin-input" id="aUnlockImageLocked" placeholder="https://res.cloudinary.com/..." oninput="state.unlockImageLocked=this.value.trim();saveState();"/>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+          <button class="admin-btn-gold" onclick="showUnlockCTA()">▶ Preview: after free video</button>
+          <button class="admin-btn-gold" onclick="showUnlockCTA('locked')">▶ Preview: locked door</button>
+        </div>
       </div>
 
       <!-- Ported from original: VIP Subscribers list -->
@@ -1720,7 +1763,22 @@ function openContentRoom(){
   renderDoors();
   updateTrialCountdownBanner();
 }
+// Stops every video in the members room (welcome video + any open door video).
+function stopRoomMedia(){
+  stopWelcome();
+  document.querySelectorAll('#contentOverlay video, #contentOverlay audio, #doorStage video').forEach(function(m){
+    try{ m.pause(); }catch(e){}
+  });
+}
+// Also stop the room's videos when the visitor switches tabs, locks their
+// phone, or leaves the page.
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden) stopRoomMedia();
+});
+window.addEventListener('pagehide', stopRoomMedia);
+
 function closeContentRoom(){
+  stopRoomMedia();
   document.getElementById('contentOverlay').classList.remove('active');
   if(trialCountdownInterval){ clearInterval(trialCountdownInterval); trialCountdownInterval = null; }
   if(contentPreviewFromAdmin){
@@ -1898,7 +1956,7 @@ function renderDoorsInto(gridId, emptyId, previewAs){
     let clickAction = '';
     if(canOpen) clickAction = "openDoor('" + d.id + "')";
     else if(isPaywalled && d.isFree && !previewAs && !isPaid && !(freeEnteredEmail && trialStartedAt)) clickAction = "startPreviewFromDoor()";
-    else if(isPaywalled && !previewAs) clickAction = "showUnlockCTA()";
+    else if(isPaywalled && !previewAs) clickAction = "showUnlockCTA('locked')";
 
     const doorClasses = 'door' + (hasContent ? '' : ' empty') + (hasThumb ? ' has-thumb' : '') + (isLocked ? ' paywalled' : '');
 
@@ -1930,23 +1988,43 @@ function renderDoorsInto(gridId, emptyId, previewAs){
 }
 // Shown after closing a free door, or tapping any locked door — nudges
 // toward the full unlock, with real numbers pulled from the actual doors.
-function showUnlockCTA(){
+// reason 'locked' = they tapped a locked door (hallway photo);
+// anything else = free video finished/closed (VYRA photo).
+function showUnlockCTA(reason){
   const withContent = state.doors.filter(d => d.url && d.url.trim());
   const freeOnes = withContent.filter(d => d.isFree);
+  const opened = freeOnes.length || 1;
   const remaining = Math.max(0, withContent.length - freeOnes.length);
 
   const trialEverStarted = !!(freeEnteredEmail && trialStartedAt);
   const expired = trialEverStarted && !isTrialActive();
 
-  document.getElementById('unlockCTAActiveTrial').style.display = expired ? 'none' : 'block';
-  document.getElementById('unlockCTAExpiredTrial').style.display = expired ? 'block' : 'none';
-
   if(expired){
-    document.getElementById('unlockCTATotalDoors').textContent = withContent.length;
+    document.getElementById('uctaLine1').textContent = '🔒 Your free preview has ended.';
+    document.getElementById('uctaLine2').textContent = withContent.length + ' doors are still';
   }else{
-    document.getElementById('unlockCTAOpenedCount').textContent = freeOnes.length || 1;
-    document.getElementById('unlockCTARemainingCount').textContent = remaining;
+    document.getElementById('uctaLine1').textContent = "🔥 You've only opened " + opened + (opened === 1 ? ' door.' : ' doors.');
+    document.getElementById('uctaLine2').textContent = remaining + '+ more doors are';
   }
+
+  // Offer text follows Admin settings (access days + price label).
+  const days = Number(state.accessDurationDays) || 0;
+  document.getElementById('uctaSub').textContent = days > 0 ? days + '-Day Digital Access' : 'Full Digital Access';
+  document.getElementById('uctaDesc').textContent = days > 0
+    ? "Access to Bikini Walk's digital fashion and entertainment experience for " + days + (days === 1 ? ' day.' : ' days.')
+    : "Access to Bikini Walk's digital fashion and entertainment experience.";
+  const price = (state.accessPriceLabel || '$4.99').trim();
+  document.getElementById('uctaPill').innerHTML = '<span style="white-space:nowrap">' + escapeHtml(price) + '</span> &nbsp;•&nbsp; <span style="white-space:nowrap">One-Time Payment</span> &nbsp;•&nbsp; <span style="white-space:nowrap">No Subscription</span>';
+
+  const lockedTap = reason === 'locked';
+  const img = lockedTap
+    ? ((state.unlockImageLocked && state.unlockImageLocked.trim()) || '/unlock-doors.jpg')
+    : ((state.unlockImage && state.unlockImage.trim()) || '/unlock-bg.jpg');
+  const photo = document.getElementById('uctaPhoto');
+  photo.style.backgroundImage = "url('" + img.replace(/'/g, "%27") + "')";
+  photo.style.backgroundPosition = lockedTap ? 'center' : 'center top';
+  photo.setAttribute('aria-label', lockedTap ? 'A hallway of locked doors' : 'VYRA');
+
   document.getElementById('unlockCTAModal').classList.add('active');
 }
 function startPreviewFromDoor(){
@@ -1964,7 +2042,7 @@ function openDoor(doorId){
   // openable, but guard it anyway rather than trust the UI alone.
   if(!isPaidUnlocked() && !(door.isFree && isTrialActive())){
     if(door.isFree && !(freeEnteredEmail && trialStartedAt)) startPreviewFromDoor();
-    else showUnlockCTA();
+    else showUnlockCTA('locked');
     return;
   }
   lastOpenedDoorWasFree = !isPaidUnlocked(); // paid visitors never see the upgrade prompt on close
@@ -2001,6 +2079,10 @@ function openDoor(doorId){
   stage.classList.add('active');
 
   const vid = document.getElementById('doorStageVideo');
+  if(vid && lastOpenedDoorWasFree){
+    // Free sample finished → straight to the unlock pop-up.
+    vid.addEventListener('ended', function(){ closeDoorViewer(); });
+  }
   if(vid){
     let started = false;
     function beginPlayback(){
@@ -2568,6 +2650,9 @@ function renderAdminPanel(){
   document.getElementById('aEmailList').value = state.emails.join('\n');
   document.getElementById('emailCount').textContent = '(' + state.emails.length + ')';
   document.getElementById('aAccessDays').value = state.accessDurationDays;
+  document.getElementById('aAccessPrice').value = state.accessPriceLabel || '$4.99';
+  document.getElementById('aUnlockImage').value = state.unlockImage || '';
+  document.getElementById('aUnlockImageLocked').value = state.unlockImageLocked || '';
   renderEmailExpiryList();
   renderFreeEmailsList();
   document.getElementById('aRequireVerify').checked = state.requireEmailVerification !== false;
