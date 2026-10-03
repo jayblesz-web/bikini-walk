@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Bikini Walk</title>
 <meta name="description" content="Bikini Walk — exclusive access."/>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root{
   --bg:#080808; --surface:#111; --surface2:#181818; --surface3:#222;
@@ -168,25 +168,27 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 #contactModal,#accessibilityModal,#unlockCTAModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:9999;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;}
 #contactModal.active,#accessibilityModal.active,#unlockCTAModal.active{display:flex;}
 /* ===== Unlock pop-up (photo + live offer) ===== */
-#unlockCTAModal{padding:1rem;}
-.ucta-card{position:relative;width:100%;max-width:430px;margin:auto;background:#000;border-radius:20px;overflow:hidden;border:1px solid rgba(255,64,150,.35);box-shadow:0 0 40px rgba(255,40,140,.18);}
-.ucta-photo{position:relative;width:100%;aspect-ratio:900/560;background:#14060d center top/cover no-repeat;}
-.ucta-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0) 45%,rgba(0,0,0,.75) 78%,#000 100%);}
-.ucta-close{position:absolute;top:.7rem;right:.7rem;z-index:3;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.6);border:1.5px solid var(--gold);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-.ucta-body{position:relative;z-index:2;margin-top:-2.6rem;padding:0 1.1rem 1.2rem;text-align:center;}
-.ucta-line1{font-family:'Syne',sans-serif;font-weight:800;color:#f5c842;font-size:clamp(1rem,4.6vw,1.2rem);letter-spacing:.01em;}
-.ucta-line2{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:clamp(1.45rem,7vw,1.9rem);line-height:1.08;margin:.35rem 0 1rem;}
+/* Sized to fit one screen (phone or laptop) without scrolling. */
+#unlockCTAModal{padding:.75rem;}
+.ucta-card{position:relative;width:100%;max-width:420px;margin:auto;background:#000;border-radius:20px;overflow:hidden;border:1px solid rgba(255,64,150,.35);box-shadow:0 0 40px rgba(255,40,140,.18);}
+.ucta-photo{position:relative;width:100%;aspect-ratio:900/560;max-height:34vh;background:#14060d center top/cover no-repeat;}
+.ucta-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0) 50%,rgba(0,0,0,.7) 80%,#000 100%);}
+.ucta-close{position:absolute;top:.6rem;right:.6rem;z-index:3;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.6);border:1.5px solid var(--gold);color:#fff;font-size:.95rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.ucta-body{position:relative;z-index:2;margin-top:-1.6rem;padding:0 1rem 1rem;text-align:center;}
+.ucta-line1{font-family:'Syne',sans-serif;font-weight:800;color:#f5c842;font-size:clamp(.82rem,3.5vw,.98rem);white-space:nowrap;}
+.ucta-line2{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:clamp(1.15rem,5.3vw,1.5rem);line-height:1.1;margin:.25rem 0 .75rem;white-space:nowrap;}
 .ucta-glow{color:#ff5fb0;text-shadow:0 0 12px rgba(255,64,160,.85),0 0 28px rgba(255,64,160,.55);}
-.ucta-offer{border:1px solid rgba(255,120,150,.45);border-radius:16px;background:linear-gradient(180deg,#140a0c,#070405);padding:1.1rem .9rem 1rem;box-shadow:inset 0 0 24px rgba(255,64,150,.08);}
-.ucta-title{display:flex;align-items:center;justify-content:center;gap:.55rem;font-family:'Syne',sans-serif;font-weight:800;color:#f5c842;font-size:clamp(1.25rem,6vw,1.6rem);}
-.ucta-title svg{width:1.6rem;height:auto;flex-shrink:0;}
-.ucta-sub{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:.95rem;margin-top:.15rem;}
-.ucta-desc{color:#d9d4cc;font-size:.88rem;line-height:1.45;margin:.55rem 0 .85rem;}
-.ucta-pill{border:1.5px solid #f5c842;border-radius:12px;color:#f5c842;font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(.66rem,3.1vw,.85rem);padding:.6rem .4rem;line-height:1.5;margin-bottom:.9rem;}
-.ucta-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:.6rem;background:linear-gradient(180deg,#ff3d95,#e0136d);color:#fff;border:1px solid rgba(255,170,210,.6);border-radius:14px;padding:1rem .8rem;font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1rem,4.8vw,1.2rem);letter-spacing:.02em;cursor:pointer;box-shadow:0 0 22px rgba(255,40,140,.55);transition:transform .15s,box-shadow .15s;}
+.ucta-offer{border:1px solid rgba(255,120,150,.45);border-radius:16px;background:linear-gradient(180deg,#140a0c,#070405);padding:.85rem .85rem .7rem;box-shadow:inset 0 0 24px rgba(255,64,150,.08);}
+.ucta-title{display:flex;align-items:center;justify-content:center;gap:.5rem;font-family:'Poppins','Syne',sans-serif;font-weight:700;color:#f5c842;font-size:clamp(1.2rem,5.4vw,1.5rem);line-height:1.15;white-space:nowrap;}
+.ucta-title svg{width:1.3rem;height:auto;flex-shrink:0;}
+.ucta-sub{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:.85rem;margin-top:.1rem;}
+.ucta-desc{font-family:'Poppins',sans-serif;color:#d9d4cc;font-size:.8rem;line-height:1.45;margin:.4rem 0 .65rem;}
+.ucta-pill{border:1.5px solid #f5c842;border-radius:12px;color:#f5c842;font-family:'Poppins',sans-serif;font-weight:700;font-size:clamp(.62rem,2.85vw,.8rem);padding:.5rem .3rem;margin-bottom:.7rem;line-height:1.5;}
+.ucta-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:.55rem;background:linear-gradient(180deg,#ff3d95,#e0136d);color:#fff;border:1px solid rgba(255,170,210,.6);border-radius:14px;padding:.85rem .7rem;font-family:'Poppins',sans-serif;font-weight:800;font-size:clamp(1rem,4.6vw,1.12rem);letter-spacing:.02em;white-space:nowrap;cursor:pointer;box-shadow:0 0 22px rgba(255,40,140,.55);transition:transform .15s,box-shadow .15s;}
 .ucta-btn:hover{transform:translateY(-1px);box-shadow:0 0 30px rgba(255,40,140,.75);}
-.ucta-btn svg{width:1.1rem;height:auto;}
-.ucta-later{background:none;border:none;color:var(--muted);font-size:.8rem;margin-top:.8rem;cursor:pointer;text-decoration:underline;font-family:inherit;}
+.ucta-btn svg{width:1rem;height:auto;}
+.ucta-later{background:none;border:none;color:var(--muted);font-size:.78rem;margin-top:.55rem;cursor:pointer;text-decoration:underline;font-family:'Poppins',sans-serif;}
+@media (max-height:600px){ .ucta-photo{max-height:28vh;} .ucta-desc{display:none;} }
 .door-lock-overlay{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.8);border:1px solid var(--gold);color:var(--gold);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;z-index:4;}
 /* Square "photo layer" sized exactly like the cover-cropped door photo, so the
    plaque number and padlock sit on the same spot of the photo at any tile size. */
