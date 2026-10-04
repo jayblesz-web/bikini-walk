@@ -247,7 +247,7 @@ function playableUrl(address){
 }
 
 
-const PRIVATE_KEYS = ['emails', 'emailAccess', 'freeEmails'];
+const PRIVATE_KEYS = ['emails', 'emailAccess', 'freeEmails', 'chatPersonaPrompt', 'contactEmail'];
 function publicState(state){
   if(!state) return state;
   const copy = Object.assign({}, state);
@@ -362,6 +362,31 @@ async function memberSessionPayload(store, state, email){
     doors: paidDoorContent(state),
     welcomeMemberUrl: (state.welcomeVideoMember && state.welcomeVideoMember.url) ? playableUrl(state.welcomeVideoMember.url) : '',
   };
+}
+
+// ---- Chat balances (server-side) ----
+// A chat pack bought through Stripe creates (or tops up) a "wallet" on the
+// server: wallet:<id> = { remaining, expiresAt, email }. The browser only
+// holds the random wallet id; bw-chat.js and bw-voice.js check and charge
+// the balance here, so messages can't be faked or used without paying.
+async function creditWallet(store, walletId, tier, email){
+  let id = /^[a-f0-9]{48}$/.test(String(walletId || '')) ? walletId : '';
+  let wallet = id ? await store.get('wallet:' + id, { type: 'json' }) : null;
+  if (!wallet) {
+    id = require('crypto').randomBytes(24).toString('hex');
+    wallet = { remaining: 0, expiresAt: 0, email: email || '', createdAt: Date.now() };
+  }
+  if (wallet.expiresAt && Date.now() > wallet.expiresAt) { wallet.remaining = 0; wallet.expiresAt = 0; }
+  if (tier.unlimited) {
+    wallet.remaining = Number(tier.messages) || 2000; // quiet fair-use cap
+    wallet.expiresAt = Date.now() + (Number(tier.unlimitedDays) || 30) * 86400000;
+  } else {
+    wallet.remaining = (wallet.remaining || 0) + (Number(tier.messages) || 0);
+  }
+  if (email && !wallet.email) wallet.email = email;
+  wallet.updatedAt = Date.now();
+  await store.setJSON('wallet:' + id, wallet);
+  return { walletId: id, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0 };
 }
 
 async function startTrialFor(store, email){
@@ -556,6 +581,15 @@ exports.handler = async function (event) {
       }
     }
 
+    // Current chat balance for this browser's wallet.
+    if (body.action === 'chat-wallet') {
+      const id = String(body.walletId || '');
+      const w = /^[a-f0-9]{48}$/.test(id) ? await store.get('wallet:' + id, { type: 'json' }) : null;
+      const expired = w && w.expiresAt && Date.now() > w.expiresAt;
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(
+        w && !expired ? { valid: true, remaining: w.remaining || 0, expiresAt: w.expiresAt || 0 } : { valid: false, remaining: 0, expiresAt: 0 }) };
+    }
+
     // A returning member's browser shows its pass; if it's genuine and their
     // access is still active, they get the paid door links again.
     if (body.action === 'member-session') {
@@ -587,10 +621,16 @@ exports.handler = async function (event) {
           if (purchase.claimed) {
             return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', alreadyClaimed: true }) };
           }
+          const tiers = Array.isArray(siteState.chatTiers) ? siteState.chatTiers : [];
+          const tier = tiers.find(function (t) { return t.id === purchase.tierId; });
+          if (!tier) {
+            return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', problem: 'mismatch' }) };
+          }
           purchase.claimed = true;
           purchase.claimedAt = Date.now();
           await store.setJSON('purchase:' + ref, purchase);
-          return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', tierId: purchase.tierId, email: purchase.email }) };
+          const wallet = await creditWallet(store, body.walletId, tier, purchase.email);
+          return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ paid: true, kind: 'chat', tierId: purchase.tierId, email: purchase.email }, wallet)) };
         }
         // Full access: the browser holding this checkout's reference is the
         // buyer's, so it gets a member pass — once. (Later sign-ins use email links.)
@@ -715,6 +755,8 @@ exports.handler = async function (event) {
         if (incoming[k]) { incoming[k] = Object.assign({}, incoming[k]); delete incoming[k].playUrl; delete incoming[k].playUrlFor; delete incoming[k].hasVideo; }
       });
       if (!loadedAt) {
+        incoming.chatPersonaPrompt = siteState.chatPersonaPrompt;
+        incoming.contactEmail = siteState.contactEmail;
         incoming.welcomeVideoMember = siteState.welcomeVideoMember || incoming.welcomeVideoMember;
         if (siteState.welcomeVideo) incoming.welcomeVideo = siteState.welcomeVideo;
       }

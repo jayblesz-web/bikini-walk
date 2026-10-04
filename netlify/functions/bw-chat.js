@@ -17,7 +17,8 @@
 // can save it for next time — no second API call required.
 //
 // Frontend calls this as: POST /.netlify/functions/bw-chat
-// Body: { message, history: [{role,content}], systemPrompt, fanProfile }
+// Body: { message, history: [{role,content}], walletId, fanProfile }
+// (any systemPrompt sent by the browser is ignored — the persona is read from the server)
 // Returns: { reply, memory }
 
 const DEFAULT_SYSTEM_PROMPT = `
@@ -58,6 +59,19 @@ reference — it is never shown to the fan, so don't reference it or
 acknowledge it in your visible reply.
 `.trim();
 
+// ---- Server-side persona + paid balance ----
+// The persona comes from the saved site settings (Admin → Paid Chat), never
+// from the browser, and every message is charged against a server-side chat
+// balance ("wallet") created when Stripe confirms a pack purchase.
+const { getStore } = require('@netlify/blobs');
+function getSiteStore(){
+  const siteID = process.env.BLOBS_SITE_ID;
+  const token = process.env.BLOBS_TOKEN;
+  if (siteID && token) return getStore({ name: 'bikini-walk-site', siteID, token, consistency: 'strong' });
+  return getStore({ name: 'bikini-walk-site', consistency: 'strong' });
+}
+function validWalletId(id){ return /^[a-f0-9]{48}$/.test(String(id || '')); }
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -72,7 +86,25 @@ exports.handler = async function (event) {
 
   const message = (body.message || '').toString().trim();
   const history = Array.isArray(body.history) ? body.history : [];
-  const customPersona = (body.systemPrompt || '').toString().trim();
+  const walletId = (body.walletId || '').toString();
+  if (!validWalletId(walletId)) {
+    return { statusCode: 402, body: JSON.stringify({ error: 'No chat balance', remaining: 0 }) };
+  }
+  const store = getSiteStore();
+  let wallet;
+  let customPersona = '';
+  try {
+    wallet = await store.get('wallet:' + walletId, { type: 'json' });
+    const stored = await store.get('state', { type: 'json' });
+    customPersona = ((stored && stored.state && stored.state.chatPersonaPrompt) || '').toString().trim();
+  } catch (e) {
+    console.error('bw-chat storage error:', e);
+    return { statusCode: 500, body: JSON.stringify({ error: 'Something went wrong' }) };
+  }
+  const walletExpired = wallet && wallet.expiresAt && Date.now() > wallet.expiresAt;
+  if (!wallet || walletExpired || !(wallet.remaining > 0)) {
+    return { statusCode: 402, body: JSON.stringify({ error: 'No chat balance', remaining: 0, expiresAt: 0 }) };
+  }
   const fanProfile = (body.fanProfile || '').toString().trim().slice(0, 1000);
 
   if (!message) {
@@ -97,7 +129,7 @@ exports.handler = async function (event) {
   const trimmedHistory = history.slice(-MAX_HISTORY_TURNS).map(function (m) {
     return {
       role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: (m.content || '').toString().slice(0, 2000),
+      content: (m.content || '').toString().slice(0, 800),
     };
   });
 
@@ -167,12 +199,24 @@ exports.handler = async function (event) {
     }
     if (!reply) {
       reply = "sorry, i'm a little spaced out right now — try that again?";
+    } else {
+      // One message = one credit, charged only when a real reply came back.
+      // Also remember this reply so bw-voice.js will speak it (once).
+      try {
+        const fresh = (await store.get('wallet:' + walletId, { type: 'json' })) || wallet;
+        fresh.remaining = Math.max(0, (fresh.remaining || 0) - 1);
+        fresh.lastReply = reply;
+        fresh.lastReplyVoiced = false;
+        fresh.updatedAt = Date.now();
+        await store.setJSON('wallet:' + walletId, fresh);
+        wallet = fresh;
+      } catch (e) { console.error('bw-chat: could not charge wallet', e); }
     }
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reply, memory }),
+      body: JSON.stringify({ reply, memory, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0 }),
     };
   } catch (err) {
     console.error('bw-chat error:', err);

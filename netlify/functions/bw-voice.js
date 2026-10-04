@@ -16,7 +16,7 @@
 // last update: Speed 0.80, Stability 34%, Similarity 0%, Style 3%.
 //
 // Frontend calls this as: POST /.netlify/functions/bw-voice
-// Body: { text: "hey! good to hear from you" }
+// Body: { text: "<VYRA's last reply>", walletId }
 // Returns: raw audio bytes (audio/mpeg) — play directly via an <audio> tag,
 // e.g. audio.src = URL.createObjectURL(blob)
 
@@ -44,6 +44,14 @@ function applyPronunciationOverrides(text) {
   return result;
 }
 
+const { getStore } = require('@netlify/blobs');
+function getSiteStore(){
+  const siteID = process.env.BLOBS_SITE_ID;
+  const token = process.env.BLOBS_TOKEN;
+  if (siteID && token) return getStore({ name: 'bikini-walk-site', siteID, token, consistency: 'strong' });
+  return getStore({ name: 'bikini-walk-site', consistency: 'strong' });
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -60,6 +68,21 @@ exports.handler = async function (event) {
   if (!text) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing text' }) };
   }
+  // Only speaks the reply VYRA just gave this paying chatter, and only once —
+  // so the voice can't be used to read out arbitrary text on your ElevenLabs bill.
+  const walletId = (body.walletId || '').toString();
+  if (!/^[a-f0-9]{48}$/.test(walletId)) {
+    return { statusCode: 402, body: JSON.stringify({ error: 'No chat balance' }) };
+  }
+  const store = getSiteStore();
+  let wallet;
+  try { wallet = await store.get('wallet:' + walletId, { type: 'json' }); }
+  catch (e) { return { statusCode: 500, body: JSON.stringify({ error: 'Something went wrong' }) }; }
+  if (!wallet || wallet.lastReplyVoiced || (wallet.lastReply || '').trim() !== text) {
+    return { statusCode: 403, body: JSON.stringify({ error: 'Not allowed' }) };
+  }
+  wallet.lastReplyVoiced = true;
+  try { await store.setJSON('wallet:' + walletId, wallet); } catch (e) {}
   // ElevenLabs bills per character — keep replies from ballooning cost.
   const clippedText = applyPronunciationOverrides(text.slice(0, 600));
 
