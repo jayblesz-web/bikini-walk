@@ -1394,6 +1394,9 @@ async function loadAdminPrivate(){
     state.freeEmails = Array.isArray(full.freeEmails) ? full.freeEmails : [];
     if(Array.isArray(full.doors)) state.doors = full.doors; // includes paid door links
     if(full.welcomeVideo) state.welcomeVideo = full.welcomeVideo;
+    // Private text settings (not sent to visitors): VYRA's persona, contact email.
+    if(typeof full.chatPersonaPrompt === 'string') state.chatPersonaPrompt = full.chatPersonaPrompt;
+    if(typeof full.contactEmail === 'string') state.contactEmail = full.contactEmail;
     state.welcomeVideoMember = full.welcomeVideoMember || { url: '' };
     playLinksAt = Date.now();
     privateLoadedAt = data.loadedAt || Date.now();
@@ -1813,7 +1816,7 @@ async function checkPurchase(ref){
   const res = await fetch('/.netlify/functions/site-state', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'check-purchase', ref: ref }),
+    body: JSON.stringify({ action: 'check-purchase', ref: ref, walletId: getChatWalletId() }),
   });
   if(!res.ok) throw new Error('check-purchase failed: ' + res.status);
   return res.json();
@@ -2634,6 +2637,29 @@ function renderChatAvatar(){
   }
 }
 
+// The real chat balance lives on the server ("wallet"); this browser keeps
+// only the wallet id plus a cached copy of the balance for display.
+function getChatWalletId(){
+  try{ return localStorage.getItem('bw_chat_wallet') || ''; }catch(e){ return ''; }
+}
+function setChatBalance(remaining, expiresAt){
+  chatCredits = { remaining: Math.max(0, Number(remaining) || 0), expiresAt: Number(expiresAt) || 0 };
+  saveChatCredits();
+  updateChatCreditsBadge();
+}
+async function refreshChatBalance(){
+  const id = getChatWalletId();
+  if(!id){ setChatBalance(0, 0); return; }
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'chat-wallet', walletId: id }),
+    });
+    const data = await res.json();
+    setChatBalance(data.remaining, data.expiresAt);
+  }catch(e){ console.error('chat balance check failed:', e); }
+}
 function loadChatCredits(){
   try{
     const raw = localStorage.getItem('bw_chat_credits');
@@ -2715,6 +2741,10 @@ async function checkChatStripeRedirect(){
           if(returned) showToast(r.alreadyClaimed ? 'This chat pack was already added.' : '⚠ Payment received but the pack did not match — please contact us.');
           return;
         }
+        if(r.walletId){
+          try{ localStorage.setItem('bw_chat_wallet', r.walletId); }catch(e){}
+          setChatBalance(r.remaining, r.expiresAt);
+        }
         const tier = state.chatTiers.find(t => t.id === r.tierId);
         if(tier) applyChatTierPurchase(tier);
         return;
@@ -2724,15 +2754,9 @@ async function checkChatStripeRedirect(){
   }
   if(returned) showToast("⚠ We couldn't confirm your payment yet. Refresh the page in a minute.");
 }
+// The balance itself was already set from the server's answer.
 function applyChatTierPurchase(tier){
-  loadChatCredits();
-  if(tier.unlimited){
-    chatCredits.remaining = tier.messages; // quiet fair-use cap, not advertised as a limit
-    chatCredits.expiresAt = Date.now() + tier.unlimitedDays * 24 * 60 * 60 * 1000;
-  }else{
-    chatCredits.remaining += tier.messages; // packs stack if they already had some left
-  }
-  saveChatCredits();
+  updateChatCreditsBadge();
   closeChatTierModal();
   addChatMessage('system', tier.label + ' activated.');
   openChatWindow();
@@ -2740,6 +2764,7 @@ function applyChatTierPurchase(tier){
 // Restores conversation + credit balance on return visits.
 function resumeChatSessionIfActive(){
   loadChatCredits();
+  refreshChatBalance(); // the server's balance is the real one
   try{
     const storedProfile = localStorage.getItem('bw_chat_fan_profile');
     if(storedProfile) chatFanProfile = storedProfile;
@@ -2851,10 +2876,24 @@ function sendChatMessage(){
   fetch('/.netlify/functions/bw-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: message, history: chatHistory, systemPrompt: state.chatPersonaPrompt, fanProfile: chatFanProfile })
+    body: JSON.stringify({ message: message, history: chatHistory, walletId: getChatWalletId(), fanProfile: chatFanProfile })
   })
-    .then(function(res){ return res.json(); })
+    .then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(data){
+        if(res.status === 402){ data.outOfCredits = true; }
+        return data;
+      });
+    })
     .then(function(data){
+      if(data.outOfCredits){
+        const typing = document.getElementById('chatTypingIndicator');
+        if(typing) typing.remove();
+        chatHistory.pop(); // that message wasn't answered or charged
+        setChatBalance(0, 0);
+        addChatMessage('system', "You're out of messages — grab another pack to keep chatting.");
+        openChatTierModal();
+        return;
+      }
       const typing = document.getElementById('chatTypingIndicator');
       if(typing) typing.remove();
       const reply = data.reply || "sorry, having a moment — try again?";
@@ -2876,10 +2915,8 @@ function sendChatMessage(){
         try{ localStorage.setItem('bw_chat_fan_profile', chatFanProfile); }catch(e){}
       }
 
-      // One user message = one credit, charged only after a reply comes back.
-      chatCredits.remaining = Math.max(0, chatCredits.remaining - 1);
-      saveChatCredits();
-      updateChatCreditsBadge();
+      // The server charged one credit; show its updated balance.
+      if(typeof data.remaining === 'number') setChatBalance(data.remaining, data.expiresAt);
       if(chatCredits.remaining <= 0){
         const isUnlimitedActive = chatCredits.expiresAt && Date.now() < chatCredits.expiresAt;
         addChatMessage('system', isUnlimitedActive
@@ -2906,7 +2943,7 @@ function playChatVoice(text){
   fetch('/.netlify/functions/bw-voice', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: text })
+    body: JSON.stringify({ text: text, walletId: getChatWalletId() })
   })
     .then(function(res){ if(!res.ok) throw new Error('voice failed'); return res.blob(); })
     .then(function(blob){
