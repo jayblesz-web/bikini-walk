@@ -252,6 +252,14 @@ function publicState(state){
   PRIVATE_KEYS.forEach(function(k){ delete copy[k]; });
   // Paid doors' video/image links (or hidden message text) only go to signed-in
   // members via 'member-session'. Visitors just learn the door has content.
+  // Welcome videos: video 1 (everyone) as a playable link; video 2 (members)
+  // only goes out through 'member-session'.
+  if (copy.welcomeVideo && copy.welcomeVideo.url) {
+    copy.welcomeVideo = Object.assign({}, copy.welcomeVideo, { url: playableUrl(copy.welcomeVideo.url) });
+  }
+  if (copy.welcomeVideoMember) {
+    copy.welcomeVideoMember = { hasVideo: !!(copy.welcomeVideoMember.url && String(copy.welcomeVideoMember.url).trim()) };
+  }
   if (Array.isArray(copy.doors)) {
     copy.doors = copy.doors.map(function (d) {
       const has = !!(d && d.url && String(d.url).trim());
@@ -268,6 +276,13 @@ function withPlayUrls(state){
     if (!d || !d.url) return d;
     const play = playableUrl(d.url);
     return play !== d.url ? Object.assign({}, d, { playUrl: play, playUrlFor: d.url }) : d;
+  });
+  ['welcomeVideo', 'welcomeVideoMember'].forEach(function (k) {
+    const v = state[k];
+    if (v && v.url) {
+      const play = playableUrl(v.url);
+      if (play !== v.url) copy[k] = Object.assign({}, v, { playUrl: play, playUrlFor: v.url });
+    }
   });
   return copy;
 }
@@ -343,6 +358,7 @@ async function memberSessionPayload(store, state, email){
     grantedAt: info.grantedAt,
     token: await makeMemberToken(store, email),
     doors: paidDoorContent(state),
+    welcomeMemberUrl: (state.welcomeVideoMember && state.welcomeVideoMember.url) ? playableUrl(state.welcomeVideoMember.url) : '',
   };
 }
 
@@ -690,6 +706,15 @@ exports.handler = async function (event) {
           if (old && !d.isFree && (!d.url || !String(d.url).trim())) return Object.assign({}, d, { url: old.url });
           return d;
         });
+      }
+      // Never store the temporary playable links; keep the member video if this
+      // tab only had the public copy (where its address is hidden).
+      ['welcomeVideo', 'welcomeVideoMember'].forEach(function (k) {
+        if (incoming[k]) { incoming[k] = Object.assign({}, incoming[k]); delete incoming[k].playUrl; delete incoming[k].playUrlFor; delete incoming[k].hasVideo; }
+      });
+      if (!loadedAt) {
+        incoming.welcomeVideoMember = siteState.welcomeVideoMember || incoming.welcomeVideoMember;
+        if (siteState.welcomeVideo) incoming.welcomeVideo = siteState.welcomeVideo;
       }
       incoming.doors = (incoming.doors || []).map(function (d) {
         if (!d) return d;
