@@ -423,7 +423,7 @@ exports.handler = async function (event) {
         if (!record) {
           return { statusCode: 400, body: JSON.stringify({ error: 'This link is invalid or has already been used.' }) };
         }
-        if (Date.now() - record.createdAt > MAGIC_LINK_TTL_MS) {
+        if (Date.now() - record.createdAt > (record.ttlMs || MAGIC_LINK_TTL_MS)) {
           await store.delete('magic:' + token);
           return { statusCode: 400, body: JSON.stringify({ error: 'This link has expired. Please request a new one.' }) };
         }
