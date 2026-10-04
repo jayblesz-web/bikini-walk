@@ -68,7 +68,7 @@ function priceLabelToCents(label){
   return Math.round(parseFloat(m[1]) * 100);
 }
 
-// "You're in" email with a one-time sign-in link (valid 7 days), sent right
+// "You're in" email with a sign-in link (up to 3 devices, 7 days), sent right
 // after a full-access purchase so buyers can get in from any device.
 const PURCHASE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 async function sendPurchaseSignInEmail(store, email, siteUrl){
@@ -76,7 +76,7 @@ async function sendPurchaseSignInEmail(store, email, siteUrl){
   if (!apiKey) { console.error('stripe-webhook: RESEND_API_KEY missing, no sign-in email sent'); return; }
   const fromAddress = process.env.RESEND_FROM_ADDRESS || 'Bikini Walk <onboarding@resend.dev>';
   const token = crypto.randomBytes(32).toString('hex');
-  await store.setJSON('magic:' + token, { email: email, createdAt: Date.now(), ttlMs: PURCHASE_LINK_TTL_MS });
+  await store.setJSON('magic:' + token, { email: email, createdAt: Date.now(), ttlMs: PURCHASE_LINK_TTL_MS, maxUses: 3 });
   const link = siteUrl.replace(/\/+$/, '') + '/?magic=' + token;
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -90,7 +90,7 @@ async function sendPurchaseSignInEmail(store, email, siteUrl){
       text:
         'Hi,\n\n' +
         'Thanks for your purchase. Your access to all the doors is active.\n\n' +
-        'Use this link to sign in on any device (it works once and expires in 7 days):\n' + link + '\n\n' +
+        'Use this link to sign in (it works on up to 3 devices for 7 days):\n' + link + '\n\n' +
         'Need to sign in again later? On the site, tap any locked door, then "Already paid? Sign in."\n\n' +
         'Bikini Walk',
       html:
@@ -98,7 +98,7 @@ async function sendPurchaseSignInEmail(store, email, siteUrl){
           '<p>Hi,</p>' +
           '<p>Thanks for your purchase. Your access to all the doors is active.</p>' +
           '<p>Use this link to sign in on any device:<br><a href="' + link + '">Sign in to Bikini Walk</a></p>' +
-          '<p style="color:#666;font-size:13px;">The link works once and expires in 7 days. Need to sign in again later? On the site, tap any locked door, then "Already paid? Sign in."</p>' +
+          '<p style="color:#666;font-size:13px;">The link works on up to 3 devices for 7 days. Need to sign in again later? On the site, tap any locked door, then "Already paid? Sign in."</p>' +
           '<p>Bikini Walk</p>' +
         '</div>',
     }),
