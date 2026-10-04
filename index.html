@@ -429,6 +429,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       <div class="star">✉</div>
       <h3>Check your email</h3>
       <p>We sent a link to <strong id="gateSentToEmail"></strong>. Click it to get in. New here? Your free preview starts the moment you click. Members: it signs you in to all your doors.</p>
+      <p style="font-size:.8rem;opacity:.8;">Don't see it in a minute? Check your <b>Promotions</b> or <b>spam</b> folder.</p>
       <button class="gate-login-cancel" onclick="closeGateLogin()">Close</button>
     </div>
   </div>
@@ -1846,13 +1847,13 @@ function finishActivation(){
   setActivationStep('email');
   document.getElementById('activationEmailStep').style.display = 'none';
   const done = document.getElementById('activationSuccess');
-  done.textContent = '✓ Access activated! Taking you inside...';
+  done.innerHTML = '✓ Access activated! Taking you inside…<br><span style="font-weight:400;font-size:.8rem;opacity:.85;">We also emailed you a sign-in link for your other devices. Not in your inbox? Check Promotions or spam.</span>';
   done.style.display = 'block';
   setTimeout(function(){
     document.getElementById('activationOverlay').classList.remove('active');
     closeGateLogin();
     openContentRoom();
-  }, 1600);
+  }, 4000);
 }
 // Handles someone arriving via the magic-link email (?magic=TOKEN). Confirms
 // the token server-side, which both proves they really own this email and
@@ -1921,7 +1922,7 @@ async function activateEmail(){
     await sendSignInLink(email);
     document.getElementById('activationEmailStep').style.display = 'none';
     const done = document.getElementById('activationSuccess');
-    done.textContent = '✉ We sent a sign-in link to ' + email + '. Open it on this device to get in. (Use the same email you paid with.)';
+    done.textContent = '✉ We sent a sign-in link to ' + email + '. Open it on this device to get in. Not in your inbox? Check Promotions or spam.';
     done.style.display = 'block';
   }catch(e){
     error.textContent = e.message || 'Connection error. Please try again.';
