@@ -1876,7 +1876,11 @@ async function checkMagicLinkRedirect(){
     });
     const data = await res.json().catch(() => ({}));
     if(!res.ok || !data.success){
-      showToast('⚠ ' + (data.error || 'That link is invalid or has expired.'));
+      // Already in on this device (e.g. tapped an old email link again)?
+      // Then there's nothing wrong from their side — skip the warning.
+      let alreadyIn = false;
+      try{ alreadyIn = !!(localStorage.getItem('bw_member_token') || localStorage.getItem('bw_free_email')); }catch(e){}
+      if(!alreadyIn) showToast('⚠ ' + (data.error || 'That link is invalid or has expired.'));
       return;
     }
 
