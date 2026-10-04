@@ -66,6 +66,35 @@ function priceLabelToCents(label){
   return Math.round(parseFloat(m[1]) * 100);
 }
 
+// "You're in" email with a one-time sign-in link (valid 7 days), sent right
+// after a full-access purchase so buyers can get in from any device.
+const PURCHASE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+async function sendPurchaseSignInEmail(store, email, siteUrl){
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) { console.error('stripe-webhook: RESEND_API_KEY missing, no sign-in email sent'); return; }
+  const fromAddress = process.env.RESEND_FROM_ADDRESS || 'Bikini Walk <onboarding@resend.dev>';
+  const token = crypto.randomBytes(32).toString('hex');
+  await store.setJSON('magic:' + token, { email: email, createdAt: Date.now(), ttlMs: PURCHASE_LINK_TTL_MS });
+  const link = siteUrl.replace(/\/+$/, '') + '/?magic=' + token;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: fromAddress,
+      to: [email],
+      subject: "You're in — your Bikini Walk sign-in link",
+      html:
+        '<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">' +
+          '<h2 style="margin-bottom:8px;">Thanks for joining Bikini Walk.</h2>' +
+          '<p style="color:#555;line-height:1.6;">Your payment went through and every door is unlocked. Tap below to sign in on this device.</p>' +
+          '<p style="margin:28px 0;"><a href="' + link + '" style="background:#f5c842;color:#000;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">Open all doors →</a></p>' +
+          '<p style="color:#999;font-size:12px;line-height:1.5;">This link works once and expires in 7 days. Need to sign in on another device later? On the site, tap any locked door, then "Already paid? Sign in."</p>' +
+        '</div>',
+    }),
+  });
+  if (!res.ok) console.error('stripe-webhook: sign-in email failed', res.status, await res.text());
+}
+
 function parseRef(ref){
   if(!ref) return { kind: 'access', tierId: '' }; // paid via the link directly — treat as full access
   if(ref.indexOf('acc_') === 0) return { kind: 'access', tierId: '' };
@@ -156,11 +185,13 @@ exports.handler = async function (event) {
       if (!existing) await store.setJSON('purchase:' + ref, record);
     }
     // A permanent per-email payment log (useful for refunds/support).
+    let isNewPayment = false;
     if (email) {
       const log = (await store.get('payments:' + email, { type: 'json' })) || [];
       if (!log.some(function (p) { return p.sessionId === session.id; })) {
         log.push(record);
         await store.setJSON('payments:' + email, log);
+        isNewPayment = true; // Stripe can resend the same event; only email once
       }
     }
 
@@ -174,6 +205,14 @@ exports.handler = async function (event) {
       stored.state.emailAccess = stored.state.emailAccess || {};
       stored.state.emailAccess[email] = now; // buying again (renewal) restarts the clock
       await store.setJSON(BLOB_KEY, stored);
+
+      if (isNewPayment) {
+        const host = event.headers['x-forwarded-host'] || event.headers.host || '';
+        // The webhook is called at bikiniwalk.net, so link back to that same address.
+        const siteUrl = host ? 'https://' + host : (process.env.URL || '');
+        try { if (siteUrl) await sendPurchaseSignInEmail(store, email, siteUrl); }
+        catch (e) { console.error('stripe-webhook: sign-in email error', e); } // never fail the webhook over email
+      }
     }
 
     console.log('stripe-webhook: recorded', info.kind, info.tierId || '', email, session.amount_total);
