@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Bikini Walk</title>
 <meta name="description" content="Bikini Walk — exclusive access."/>
+<script>
+  // Arriving from an email sign-in link: hide the front page right away and
+  // show a short "Opening…" screen until the room is ready (no flash).
+  if (/[?&]magic=/.test(location.search)) document.documentElement.classList.add('bw-opening');
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root{
@@ -198,6 +203,10 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .door-padlock{position:absolute;left:50.5%;top:52%;width:15%;transform:translate(-50%,-50%);filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));}
 .door-padlock-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;}
 .door-padlock-center svg{width:34%;max-width:70px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));}
+#bwOpening{display:none;position:fixed;inset:0;z-index:100000;background:#000;color:#f5c842;align-items:center;justify-content:center;flex-direction:column;gap:1rem;font-family:'Syne',sans-serif;font-weight:800;letter-spacing:.04em;}
+html.bw-opening #bwOpening{display:flex;}
+#bwOpening .bw-spin{width:34px;height:34px;border:3px solid rgba(245,200,66,.25);border-top-color:#f5c842;border-radius:50%;animation:bwSpin .8s linear infinite;}
+@keyframes bwSpin{to{transform:rotate(360deg);}}
 .door-handle-lock{position:absolute;z-index:2;pointer-events:none;width:0;height:0;}
 .door-handle-glow{position:absolute;left:0;top:0;width:26px;height:26px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(255,220,80,1) 0%,rgba(255,200,40,.6) 30%,rgba(255,190,30,0) 70%);mix-blend-mode:screen;animation:handleGlow 2.4s ease-in-out infinite;}
 .door-handle-lock svg{position:absolute;left:0;top:0;width:15px;height:auto;transform:translate(-50%,-12%);filter:drop-shadow(0 2px 3px rgba(0,0,0,.85)) drop-shadow(0 0 5px rgba(255,200,40,.7));}
@@ -363,6 +372,7 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 </style>
 </head>
 <body>
+<div id="bwOpening" aria-live="polite"><div class="bw-spin"></div><div>Opening Bikini Walk…</div></div>
 
 <!-- ============ FRONT PAGE ============ -->
 <section class="hero" id="heroSection">
@@ -831,11 +841,17 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
       <div class="admin-section welcome-video-box">
         <div class="admin-section-title" style="color:var(--gold);">🎬 Welcome Video</div>
         <p style="color:var(--muted);font-size:.78rem;margin-bottom:.8rem;">Plays automatically the moment a member opens the content room, then collapses into a tap-to-replay banner.</p>
-        <label class="admin-label">Video URL (.mp4) or upload below</label>
+        <label class="admin-label">Video 1: free preview visitors (.mp4)</label>
         <input class="admin-input" id="aWelcomeUrl" placeholder="https://... .mp4"/>
-        <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem;">
           <button class="admin-btn" onclick="saveWelcomeVideo()">💾 Save</button>
           <button class="admin-btn-gold" onclick="previewWelcomeAdmin()">▶ Preview</button>
+        </div>
+        <label class="admin-label">Video 2: paying members (.mp4). Plays after purchase; leave blank to use video 1</label>
+        <input class="admin-input" id="aWelcomeMemberUrl" placeholder="https://... .mp4"/>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+          <button class="admin-btn" onclick="saveWelcomeVideo()">💾 Save</button>
+          <button class="admin-btn-gold" onclick="previewWelcomeAdmin('member')">▶ Preview</button>
         </div>
       </div>
 
@@ -1009,6 +1025,7 @@ let state = {
   "stripeUrl": "",
   "renewalStripeUrl": "",
   "disclaimer": "Bikini Walk — Member Access Notice\n\nBikini Walk features exclusive content from VYRA, a digital music artist.\n\nAll content available here is exclusive, copyrighted material intended for members only.\n\nBy purchasing or gaining access to Bikini Walk, you acknowledge and agree that:\n\n* All sales are final. No refunds will be issued once access has been granted.\n* Recording, downloading, copying, screen-capturing, or screen-recording any Bikini Walk content is prohibited — ==this includes sending it to friends or family, posting it on social media, or uploading it to any other website or platform.==\n* Membership access is for the individual purchaser only and may not be shared with others.\n* Unauthorized use or distribution of Bikini Walk content may result in immediate termination of access without refund and may lead to further legal action.\n\nVYRA is a digitally created artist, and Bikini Walk is an exclusive digital entertainment experience created for VYRA members.\n\nBy continuing with your purchase and accessing Bikini Walk, you agree to these terms.",
+  "welcomeVideoMember": { "url": "" },
   "welcomeVideo": {
     "url": "https://res.cloudinary.com/duy0bc0wj/video/upload/v1784094865/Vyra_Intro_bplrjz.mp4"
   },
@@ -1213,6 +1230,7 @@ function applyMemberSession(payload){
   try{ localStorage.setItem('bw_member_token', payload.token); }catch(e){}
   memberDoorUrls = {};
   (payload.doors || []).forEach(function(d){ memberDoorUrls[d.id] = d.url; });
+  memberWelcomeUrl = payload.welcomeMemberUrl || '';
   applyMemberDoorUrls();
   rememberMember(payload.email, payload.grantedAt);
   setUnlocked(payload.email);
@@ -1375,6 +1393,8 @@ async function loadAdminPrivate(){
     state.emailAccess = full.emailAccess || {};
     state.freeEmails = Array.isArray(full.freeEmails) ? full.freeEmails : [];
     if(Array.isArray(full.doors)) state.doors = full.doors; // includes paid door links
+    if(full.welcomeVideo) state.welcomeVideo = full.welcomeVideo;
+    state.welcomeVideoMember = full.welcomeVideoMember || { url: '' };
     playLinksAt = Date.now();
     privateLoadedAt = data.loadedAt || Date.now();
   }catch(e){
@@ -1858,10 +1878,14 @@ function finishActivation(){
 // Handles someone arriving via the magic-link email (?magic=TOKEN). Confirms
 // the token server-side, which both proves they really own this email and
 // starts (or reads, if one already exists) their 72-hour trial clock.
+function endOpeningScreen(){ document.documentElement.classList.remove('bw-opening'); }
 async function checkMagicLinkRedirect(){
   const params = new URLSearchParams(window.location.search);
   const token = params.get('magic');
-  if(!token) return;
+  if(!token){ endOpeningScreen(); return; }
+  try{ await runMagicLink(token); } finally { endOpeningScreen(); }
+}
+async function runMagicLink(token){
 
   // Clean the URL immediately so refreshing the page doesn't try to reuse
   // an already-spent (single-use) token.
@@ -2038,6 +2062,19 @@ function updateTrialCountdownBanner(){
 }
 
 // ── WELCOME VIDEO — ported from vipRenderWelcomeBanner / vipStopWelcome / vipReplayWelcome ──
+// Video 1 for free-preview visitors; video 2 for paying members (falls back to
+// video 1 if no member video is set). Admin copies carry playUrl for R2.
+let memberWelcomeUrl = '';
+function welcomeSrc(v){
+  if(!v || !v.url) return '';
+  return (v.playUrl && v.playUrlFor === v.url) ? v.playUrl : v.url;
+}
+function currentWelcomeUrl(){
+  const free = welcomeSrc(state.welcomeVideo);
+  if(!isPaidUnlocked()) return free;
+  const memberVid = memberWelcomeUrl || welcomeSrc(state.welcomeVideoMember);
+  return memberVid || free;
+}
 function renderWelcomeBanner(){
   const videoEl = document.getElementById('welcomeVideo');
   const closedState = document.getElementById('welcomeClosedState');
@@ -2045,12 +2082,13 @@ function renderWelcomeBanner(){
   const stopBtn = document.getElementById('welcomeStopBtn');
   if(!videoEl || !banner) return;
 
-  if(!state.welcomeVideo.url){
+  const wantSrc = currentWelcomeUrl();
+  if(!wantSrc){
     banner.style.display = 'none';
     return;
   }
   banner.style.display = 'block';
-  videoEl.src = state.welcomeVideo.url;
+  if(videoEl.getAttribute('src') !== wantSrc) videoEl.src = wantSrc;
 
   if(!welcomeHasPlayed){
     videoEl.style.display = 'block';
@@ -2086,7 +2124,8 @@ function replayWelcome(){
   const videoEl = document.getElementById('welcomeVideo');
   const closedState = document.getElementById('welcomeClosedState');
   const stopBtn = document.getElementById('welcomeStopBtn');
-  if(!videoEl || !state.welcomeVideo.url) return;
+  if(!videoEl || !currentWelcomeUrl()) return;
+  if(videoEl.getAttribute('src') !== currentWelcomeUrl()) videoEl.src = currentWelcomeUrl();
   videoEl.style.display = 'block';
   closedState.style.display = 'none';
   stopBtn.style.display = 'flex';
@@ -2961,6 +3000,7 @@ function renderAdminPanel(){
   document.getElementById('aLockHandleXVal').textContent = handlePos('x').toFixed(1) + '%';
   document.getElementById('aLockHandleYVal').textContent = handlePos('y').toFixed(1) + '%';
   document.getElementById('aWelcomeUrl').value = state.welcomeVideo.url || '';
+  document.getElementById('aWelcomeMemberUrl').value = (state.welcomeVideoMember && state.welcomeVideoMember.url) || '';
   document.getElementById('aChatEnabled').checked = !!state.chatEnabled;
   document.getElementById('aChatPersona').value = state.chatPersonaPrompt || '';
   document.getElementById('aChatAvatarPreview').src = state.chatAvatarImage || '';
@@ -3437,11 +3477,18 @@ function renewEmailAccess(email){
 function saveWelcomeVideo(){
   state.welcomeVideo.url = optimizeCloudinaryUrl(document.getElementById('aWelcomeUrl').value.trim());
   document.getElementById('aWelcomeUrl').value = state.welcomeVideo.url;
+  state.welcomeVideoMember = state.welcomeVideoMember || { url: '' };
+  state.welcomeVideoMember.url = optimizeCloudinaryUrl(document.getElementById('aWelcomeMemberUrl').value.trim());
+  document.getElementById('aWelcomeMemberUrl').value = state.welcomeVideoMember.url;
   saveState();
   showToast('✓ Welcome video saved');
 }
-function previewWelcomeAdmin(){
-  const url = state.welcomeVideo.url;
+function previewWelcomeAdmin(which){
+  const v = which === 'member' ? (state.welcomeVideoMember || {}) : state.welcomeVideo;
+  const typed = document.getElementById(which === 'member' ? 'aWelcomeMemberUrl' : 'aWelcomeUrl').value.trim();
+  let url = typed || v.url;
+  if(v.playUrl && v.playUrlFor === url) url = v.playUrl;
+  else if(looksLikeR2(url)) showToast('New R2 link: click Save, then close and reopen Admin to preview it.');
   if(!url){ showToast('⚠ Add a welcome video first.'); return; }
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;';
