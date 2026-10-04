@@ -81,15 +81,25 @@ async function sendMagicLinkEmail(email, link, isMember){
     body: JSON.stringify({
       from: fromAddress,
       to: [email],
+      // Plain, personal-looking email so Gmail is less likely to file it under Promotions.
       subject: isMember ? 'Your Bikini Walk sign-in link' : 'Your Bikini Walk access link',
+      text:
+        'Hi,\n\n' +
+        (isMember
+          ? 'Here is your link to sign in to Bikini Walk:\n'
+          : 'Here is your link to start your free 72-hour preview of Bikini Walk:\n') +
+        link + '\n\n' +
+        'The link expires in 30 minutes. If you didn\'t request this, you can ignore this email.\n\n' +
+        'Bikini Walk',
       html:
-        '<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">' +
-          '<h2 style="margin-bottom:8px;">' + (isMember ? 'Welcome back.' : 'You\'re almost in.') + '</h2>' +
-          '<p style="color:#555;line-height:1.6;">' + (isMember
-            ? 'Click below to sign in to Bikini Walk. All your doors are waiting.'
-            : 'Click below to verify your email and start your free 72-hour preview of Bikini Walk — your free door unlocks immediately.') + '</p>' +
-          '<p style="margin:28px 0;"><a href="' + link + '" style="background:#f5c842;color:#000;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">Enter Bikini Walk →</a></p>' +
-          '<p style="color:#999;font-size:12px;">This link expires in 30 minutes. If you didn\'t request this, you can ignore this email.</p>' +
+        '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#222;">' +
+          '<p>Hi,</p>' +
+          '<p>' + (isMember
+            ? 'Here is your link to sign in to Bikini Walk:'
+            : 'Here is your link to start your free 72-hour preview of Bikini Walk:') +
+          '<br><a href="' + link + '">' + (isMember ? 'Sign in to Bikini Walk' : 'Start my free preview') + '</a></p>' +
+          '<p style="color:#666;font-size:13px;">The link expires in 30 minutes. If you didn\'t request this, you can ignore this email.</p>' +
+          '<p>Bikini Walk</p>' +
         '</div>',
     }),
   });
