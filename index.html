@@ -2328,7 +2328,10 @@ function playSrc(door){
   return (door.playUrl && door.playUrlFor === door.url) ? door.playUrl : door.url;
 }
 function looksLikeR2(url){
-  return /\.r2\.dev\/|^r2:|\.r2\.cloudflarestorage\.com\//i.test(String(url || ''));
+  const u = String(url || '').trim();
+  if(/\.r2\.dev\/|^r2:|\.r2\.cloudflarestorage\.com\//i.test(u)) return true;
+  // a bare file name like "Door 5.mp4" is treated as an R2 file too
+  return !/^[a-z][a-z0-9+.-]*:/i.test(u) && /\.(mp4|m4v|mov|webm)$/i.test(u);
 }
 async function openDoor(doorId){
   if(Date.now() - playLinksAt > PLAY_LINK_REFRESH_MS){
