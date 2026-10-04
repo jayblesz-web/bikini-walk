@@ -1355,9 +1355,9 @@ function saveState(newPasswordOverride){
   // Visitors never write to the live site — only the logged-in owner does.
   // (Visitor-side changes like free leads and paid activations go through
   // their own server actions instead.)
-  if(!adminMode) return;
+  if(!adminMode) return Promise.resolve();
 
-  fetch('/.netlify/functions/site-state', {
+  return fetch('/.netlify/functions/site-state', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -3480,7 +3480,8 @@ function saveWelcomeVideo(){
   state.welcomeVideoMember = state.welcomeVideoMember || { url: '' };
   state.welcomeVideoMember.url = optimizeCloudinaryUrl(document.getElementById('aWelcomeMemberUrl').value.trim());
   document.getElementById('aWelcomeMemberUrl').value = state.welcomeVideoMember.url;
-  saveState();
+  const saving = saveState();
+  if(looksLikeR2(state.welcomeVideo.url) || looksLikeR2(state.welcomeVideoMember.url)) saving.then(refreshAdminPlayLinks);
   showToast('✓ Welcome video saved');
 }
 function previewWelcomeAdmin(which){
@@ -3488,7 +3489,7 @@ function previewWelcomeAdmin(which){
   const typed = document.getElementById(which === 'member' ? 'aWelcomeMemberUrl' : 'aWelcomeUrl').value.trim();
   let url = typed || v.url;
   if(v.playUrl && v.playUrlFor === url) url = v.playUrl;
-  else if(looksLikeR2(url)) showToast('New R2 link: click Save, then close and reopen Admin to preview it.');
+  else if(looksLikeR2(url)){ showToast('Click Save first, wait a second, then Preview.'); return; }
   if(!url){ showToast('⚠ Add a welcome video first.'); return; }
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;';
@@ -3615,6 +3616,30 @@ function setDoorType(doorId, type){
   door.type = type;
   renderAdminDoors();
 }
+// After saving an R2 video, fetch its fresh playable (signed) link so the
+// Admin preview works right away. Only the play links are merged in, so
+// anything you're still editing stays untouched.
+async function refreshAdminPlayLinks(){
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin-load', password: ADMIN_PASSWORD }),
+    });
+    if(!res.ok) return;
+    const full = (await res.json()).state || {};
+    const byId = {};
+    (full.doors || []).forEach(function(d){ if(d) byId[d.id] = d; });
+    state.doors.forEach(function(d){
+      const f = byId[d.id];
+      if(f && f.playUrl){ d.playUrl = f.playUrl; d.playUrlFor = f.playUrlFor; }
+    });
+    ['welcomeVideo', 'welcomeVideoMember'].forEach(function(k){
+      if(full[k] && full[k].playUrl && state[k]){ state[k].playUrl = full[k].playUrl; state[k].playUrlFor = full[k].playUrlFor; }
+    });
+    playLinksAt = Date.now();
+  }catch(e){ console.error('refreshAdminPlayLinks failed:', e); }
+}
 function saveDoor(doorId){
   const door = state.doors.find(d => d.id === doorId);
   if(!door) return;
@@ -3630,9 +3655,10 @@ function saveDoor(doorId){
   if(thumbEl) door.thumbnail = thumbEl.value.trim();
   if(lockedEl) door.lockedMessage = lockedEl.value.trim();
   if(posterLinkEl) door.posterLinkText = posterLinkEl.value.trim();
-  saveState();
+  const saving = saveState();
   renderDoors();
   showToast('✓ ' + door.label + ' saved');
+  if(looksLikeR2(door.url)) saving.then(refreshAdminPlayLinks);
 }
 function liveDoorUpdate(doorId){
   // keeps the live preview grid in sync as you type, without needing to click Save first
@@ -3835,7 +3861,7 @@ function previewDoorAdmin(doorId){
   // R2 videos play through an expiring link made by the server for the saved address.
   let url = typed;
   if(door.playUrl && door.playUrlFor === typed) url = door.playUrl;
-  else if(looksLikeR2(typed)) showToast('New R2 link: click Save, then close and reopen Admin to preview it (needed once the bucket is private).');
+  else if(looksLikeR2(typed)){ showToast('Click Save first, wait a second, then Preview.'); return; }
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;';
   modal.onclick = function(e){ if(e.target===modal) document.body.removeChild(modal); };
