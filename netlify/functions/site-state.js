@@ -445,13 +445,29 @@ exports.handler = async function (event) {
         // working for a short grace period after that. Email security scanners
         // (Outlook, Yahoo, work email) often "pre-open" links, and people
         // double-tap — without this grace they'd see "already used".
-        if (record.usedAt && Date.now() - record.usedAt > MAGIC_LINK_REUSE_GRACE_MS) {
-          await store.delete('magic:' + token);
-          return { statusCode: 400, body: JSON.stringify({ error: 'This link has already been used. Request a new one from the sign-in box.' }) };
-        }
-        if (!record.usedAt) {
-          record.usedAt = Date.now();
+        if (record.maxUses) {
+          // Purchase links ("You're in" email) can sign in up to maxUses
+          // devices/browsers within their 7 days. Opens close together (an
+          // email scanner, a double tap) count as one.
+          const now = Date.now();
+          const sameVisit = record.lastUseAt && now - record.lastUseAt < MAGIC_LINK_REUSE_GRACE_MS;
+          if (!sameVisit) {
+            if ((record.uses || 0) >= record.maxUses) {
+              return { statusCode: 400, body: JSON.stringify({ error: 'This link has been used the maximum number of times. Tap any locked door, then "Already paid? Sign in" to get a new one.' }) };
+            }
+            record.uses = (record.uses || 0) + 1;
+          }
+          record.lastUseAt = now;
           await store.setJSON('magic:' + token, record);
+        } else {
+          if (record.usedAt && Date.now() - record.usedAt > MAGIC_LINK_REUSE_GRACE_MS) {
+            await store.delete('magic:' + token);
+            return { statusCode: 400, body: JSON.stringify({ error: 'This link has already been used. Request a new one from the sign-in box.' }) };
+          }
+          if (!record.usedAt) {
+            record.usedAt = Date.now();
+            await store.setJSON('magic:' + token, record);
+          }
         }
 
         const email = record.email;
