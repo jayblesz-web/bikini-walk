@@ -82,13 +82,22 @@ async function sendPurchaseSignInEmail(store, email, siteUrl){
     body: JSON.stringify({
       from: fromAddress,
       to: [email],
-      subject: "You're in — your Bikini Walk sign-in link",
+      // Plain, personal-looking email (no big button / marketing styling) so
+      // Gmail is more likely to put it in Primary instead of Promotions.
+      subject: 'Your Bikini Walk sign-in link',
+      text:
+        'Hi,\n\n' +
+        'Thanks for your purchase. Your access to all the doors is active.\n\n' +
+        'Use this link to sign in on any device (it works once and expires in 7 days):\n' + link + '\n\n' +
+        'Need to sign in again later? On the site, tap any locked door, then "Already paid? Sign in."\n\n' +
+        'Bikini Walk',
       html:
-        '<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">' +
-          '<h2 style="margin-bottom:8px;">Thanks for joining Bikini Walk.</h2>' +
-          '<p style="color:#555;line-height:1.6;">Your payment went through and every door is unlocked. Tap below to sign in on this device.</p>' +
-          '<p style="margin:28px 0;"><a href="' + link + '" style="background:#f5c842;color:#000;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">Open all doors →</a></p>' +
-          '<p style="color:#999;font-size:12px;line-height:1.5;">This link works once and expires in 7 days. Need to sign in on another device later? On the site, tap any locked door, then "Already paid? Sign in."</p>' +
+        '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#222;">' +
+          '<p>Hi,</p>' +
+          '<p>Thanks for your purchase. Your access to all the doors is active.</p>' +
+          '<p>Use this link to sign in on any device:<br><a href="' + link + '">Sign in to Bikini Walk</a></p>' +
+          '<p style="color:#666;font-size:13px;">The link works once and expires in 7 days. Need to sign in again later? On the site, tap any locked door, then "Already paid? Sign in."</p>' +
+          '<p>Bikini Walk</p>' +
         '</div>',
     }),
   });
