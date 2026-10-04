@@ -49,6 +49,7 @@ const { getStore } = require('@netlify/blobs');
 const DEFAULT_PASSWORD = 'changeme';
 const BLOB_KEY = 'state';
 const MAGIC_LINK_TTL_MS = 30 * 60 * 1000; // a magic link is valid for 30 minutes
+const MAGIC_LINK_REUSE_GRACE_MS = 15 * 60 * 1000; // still works for 15 min after first use
 
 function getSiteStore(){
   const siteID = process.env.BLOBS_SITE_ID;
@@ -428,8 +429,18 @@ exports.handler = async function (event) {
           return { statusCode: 400, body: JSON.stringify({ error: 'This link has expired. Please request a new one.' }) };
         }
 
-        // Single-use — delete immediately so the same link can't be replayed.
-        await store.delete('magic:' + token);
+        // Mostly single-use: the first open marks the link used, and it keeps
+        // working for a short grace period after that. Email security scanners
+        // (Outlook, Yahoo, work email) often "pre-open" links, and people
+        // double-tap — without this grace they'd see "already used".
+        if (record.usedAt && Date.now() - record.usedAt > MAGIC_LINK_REUSE_GRACE_MS) {
+          await store.delete('magic:' + token);
+          return { statusCode: 400, body: JSON.stringify({ error: 'This link has already been used. Request a new one from the sign-in box.' }) };
+        }
+        if (!record.usedAt) {
+          record.usedAt = Date.now();
+          await store.setJSON('magic:' + token, record);
+        }
 
         const email = record.email;
         const st = await loadState(store);
