@@ -171,7 +171,9 @@ function r2Configured(){
 function r2KeyFor(address){
   const a = String(address || '').trim();
   if (!a) return null;
-  if (a.toLowerCase().indexOf('r2:') === 0) return a.slice(3).replace(/^\/+/, '');
+  if (a.toLowerCase().indexOf('r2:') === 0) return a.slice(3).trim().replace(/^\/+/, '');
+  // A bare file name like "Door 5.mp4" (no http://) also means a file in R2.
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(a) && /\.(mp4|m4v|mov|webm)$/i.test(a)) return a.replace(/^\/+/, '');
   let u;
   try { u = new URL(a); } catch (e) { return null; }
   const base = (process.env.R2_PUBLIC_BASE || '').trim().replace(/\/+$/, '');
