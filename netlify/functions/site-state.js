@@ -55,9 +55,11 @@ function getSiteStore(){
   const siteID = process.env.BLOBS_SITE_ID;
   const token = process.env.BLOBS_TOKEN;
   if(siteID && token){
-    return getStore({ name: 'bikini-walk-site', siteID, token });
+    return getStore({ name: 'bikini-walk-site', siteID, token, consistency: 'strong' });
   }
-  return getStore('bikini-walk-site');
+  // 'strong' = always read the latest saved data. The default can lag up to
+  // ~60s, which made fresh sign-in links look "invalid" if tapped quickly.
+  return getStore({ name: 'bikini-walk-site', consistency: 'strong' });
 }
 
 function generateToken(){
