@@ -3464,8 +3464,39 @@ function renderFreeEmailsList(){
   const wrap = document.getElementById('freeEmailsList');
   if(!wrap) return;
   wrap.innerHTML = state.freeEmails.length
-    ? state.freeEmails.map(e => escapeHtml(e)).join('<br>')
+    ? state.freeEmails.map(e => emailDeleteButton(e) + escapeHtml(e)).join('<br>')
     : '<span style="color:var(--muted2);">No free leads yet.</span>';
+}
+// ✕ next to an email in Admin: removes it everywhere (members + free leads),
+// ends its paid access, and resets its free preview so it can be reused.
+function emailDeleteButton(email){
+  const safe = escapeHtml(email).replace(/'/g, "\\'");
+  return '<button title="Delete this email" onclick="deleteEmailEverywhere(\'' + safe + '\')" ' +
+    'style="background:none;border:1px solid var(--accent);color:var(--accent);border-radius:5px;width:20px;height:20px;line-height:16px;font-size:.7rem;cursor:pointer;margin-right:.45rem;padding:0;">✕</button>';
+}
+async function deleteEmailEverywhere(email){
+  if(!confirm('Delete ' + email + '?\n\nThis removes it from your member and free-lead lists, ends any paid access, and resets its free preview. Stripe payment records are not affected.')) return;
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete-email', password: ADMIN_PASSWORD, email: email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.success){ showToast('⚠ ' + (data.error || 'Could not delete')); return; }
+    const norm = email.trim().toLowerCase();
+    const keep = e => (e || '').trim().toLowerCase() !== norm;
+    state.emails = (state.emails || []).filter(keep);
+    state.freeEmails = (state.freeEmails || []).filter(keep);
+    if(state.emailAccess) delete state.emailAccess[norm];
+    const box = document.getElementById('aEmailList');
+    if(box) box.value = state.emails.join('\n');
+    renderEmailExpiryList();
+    renderFreeEmailsList();
+    showToast('✓ Deleted ' + email);
+  }catch(e){
+    showToast('⚠ Connection error, not deleted');
+  }
 }
 function copyFreeEmails(){
   navigator.clipboard.writeText(state.freeEmails.join('\n'));
@@ -3487,19 +3518,19 @@ function renderEmailExpiryList(){
     return;
   }
   wrap.innerHTML = state.emails.map(function(e){
-    const norm = e.trim().toLowerCase();
+    const del = emailDeleteButton(e);
     if(!state.accessDurationDays){
-      return escapeHtml(e) + ' — <span style="color:var(--green);">active (no expiry)</span>';
+      return del + escapeHtml(e) + ' — <span style="color:var(--green);">active (no expiry)</span>';
     }
     const remaining = daysRemaining(e);
     if(remaining === null || remaining === undefined){
-      return escapeHtml(e) + ' — <span style="color:var(--muted2);">not yet granted</span>';
+      return del + escapeHtml(e) + ' — <span style="color:var(--muted2);">not yet granted</span>';
     }
     if(remaining <= 0){
-      return escapeHtml(e) + ' — <span style="color:var(--accent);">expired</span> ' +
+      return del + escapeHtml(e) + ' — <span style="color:var(--accent);">expired</span> ' +
         '<button class="small-btn" style="padding:.15rem .5rem;font-size:.68rem;" onclick="renewEmailAccess(\'' + escapeHtml(e).replace(/'/g,"\\'") + '\')">🔄 Renew</button>';
     }
-    return escapeHtml(e) + ' — <span style="color:var(--green);">' + remaining + ' day' + (remaining !== 1 ? 's' : '') + ' left</span>';
+    return del + escapeHtml(e) + ' — <span style="color:var(--green);">' + remaining + ' day' + (remaining !== 1 ? 's' : '') + ' left</span>';
   }).join('<br>');
 }
 // Manually restarts one customer's access clock — for cases like a stuck
