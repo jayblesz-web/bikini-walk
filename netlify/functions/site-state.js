@@ -654,6 +654,31 @@ exports.handler = async function (event) {
       }
     }
 
+    // Admin-only: remove an email everywhere — member list, access date,
+    // free leads — and reset its free preview so it can be used again.
+    // (Stripe's own payment records are untouched.)
+    if (body.action === 'delete-email') {
+      if (body.password !== currentPassword) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Not authorized' }) };
+      }
+      const target = (body.email || '').trim().toLowerCase();
+      if (!target) return { statusCode: 400, body: JSON.stringify({ error: 'Missing email' }) };
+      try {
+        const next = stored || { state: {}, password: currentPassword };
+        next.state = next.state || {};
+        const same = function (e) { return (e || '').trim().toLowerCase() === target; };
+        next.state.emails = (next.state.emails || []).filter(function (e) { return !same(e); });
+        next.state.freeEmails = (next.state.freeEmails || []).filter(function (e) { return !same(e); });
+        if (next.state.emailAccess) delete next.state.emailAccess[target];
+        await store.setJSON(BLOB_KEY, next);
+        await store.delete('trial:' + target);
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: true }) };
+      } catch (err) {
+        console.error('delete-email error:', err);
+        return { statusCode: 500, body: JSON.stringify({ error: 'Failed to delete' }) };
+      }
+    }
+
     // Admin-only: the full state, including the private email lists.
     if (body.action === 'admin-load') {
       if (body.password !== currentPassword) {
