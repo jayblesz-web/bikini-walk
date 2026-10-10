@@ -297,6 +297,10 @@ html.bw-opening #bwOpening{display:flex;}
 .door-stage{position:fixed;inset:0;z-index:9500;background:#000;display:none;}
 .door-stage.active{display:block;}
 .door-stage-content{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;}
+/* Viewer watermark: the member's email, faint, drifting slowly over the video.
+   pointer-events:none so it never blocks play/pause/seek. */
+.door-watermark{position:absolute;inset:0;z-index:5;pointer-events:none;overflow:hidden;}
+.door-watermark span{position:absolute;white-space:nowrap;color:#fff;font-family:'Space Mono',monospace;font-size:clamp(.7rem,2.6vw,.95rem);letter-spacing:.04em;text-shadow:0 1px 3px rgba(0,0,0,.9);transition:left 2.5s ease-in-out,top 2.5s ease-in-out;user-select:none;}
 .door-stage-close{position:fixed;top:max(1rem,env(safe-area-inset-top));right:1rem;background:rgba(40,40,48,.95);border:1px solid var(--gold);color:#fff;width:42px;height:42px;border-radius:50%;font-size:1.2rem;cursor:pointer;z-index:9600;display:flex;align-items:center;justify-content:center;}
 
 /* ===== FOOTER ===== */
@@ -820,6 +824,22 @@ html.bw-opening #bwOpening{display:flex;}
         <p style="color:var(--muted);font-size:.78rem;margin-bottom:.9rem;">Everyone who's verified their email via the link but hasn't paid yet — only added here after they actually click the link, so these are real, confirmed addresses. Worth reaching out to when you add new doors or run a promotion.</p>
         <div id="freeEmailsList" style="font-family:'Space Mono',monospace;font-size:.78rem;color:var(--muted);line-height:1.8;max-height:200px;overflow-y:auto;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.8rem;margin-bottom:.7rem;"></div>
         <button class="admin-btn-outline" onclick="copyFreeEmails()">📋 Copy All</button>
+      </div>
+
+      <div class="admin-section">
+        <div class="admin-section-title">🛡 Video watermark</div>
+        <p style="color:var(--muted);font-size:.78rem;margin-bottom:.8rem;">Shows the viewer's email faintly over door videos and photos, drifting every few seconds. It doesn't block screenshots, but people rarely share clips with their own email on them, and you'll know whose account a leak came from. Use "Preview as paying member" to see it.</p>
+        <label style="display:flex;align-items:center;gap:.4rem;margin-bottom:.6rem;cursor:pointer;">
+          <input type="checkbox" id="aWmEnabled" onchange="state.watermarkEnabled=this.checked;saveState();" style="width:16px;height:16px;accent-color:var(--gold);"/>
+          <span style="font-size:.82rem;font-weight:700;">Show watermark</span>
+        </label>
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.75rem;color:var(--muted);margin-bottom:.6rem;">Fainter
+          <input type="range" id="aWmOpacity" min="0.08" max="0.5" step="0.02" style="flex:1;accent-color:var(--gold);" oninput="state.watermarkOpacity=Number(this.value);document.getElementById('aWmOpacityVal').textContent=Math.round(this.value*100)+'%';saveState();"/>
+          Stronger <span id="aWmOpacityVal" style="width:40px;color:var(--gold);"></span></div>
+        <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;">
+          <input type="checkbox" id="aWmFree" onchange="state.watermarkFree=this.checked;saveState();" style="width:16px;height:16px;accent-color:var(--gold);"/>
+          <span style="font-size:.78rem;color:var(--muted);">Also show it to free-preview visitors (on the free door)</span>
+        </label>
       </div>
 
       <div class="admin-section">
@@ -2336,6 +2356,52 @@ function looksLikeR2(url){
   // a bare file name like "Door 5.mp4" is treated as an R2 file too
   return !/^[a-z][a-z0-9+.-]*:/i.test(u) && /\.(mp4|m4v|mov|webm)$/i.test(u);
 }
+// ── Viewer watermark ─────────────────────────────────────────────
+let watermarkTimer = null;
+function watermarkText(){
+  if(contentPreviewFromAdmin) return 'member@example.com · preview';
+  if(isPaidUnlocked() && unlockedEmail) return unlockedEmail;
+  if(state.watermarkFree && freeEnteredEmail && freeEnteredEmail !== 'admin-preview') return freeEnteredEmail;
+  return '';
+}
+function startWatermark(){
+  stopWatermark();
+  if(state.watermarkEnabled === false) return;
+  const text = watermarkText();
+  const host = document.getElementById('doorStageContent');
+  if(!text || !host) return;
+  const layer = document.createElement('div');
+  layer.className = 'door-watermark';
+  layer.id = 'doorWatermark';
+  const span = document.createElement('span');
+  span.textContent = text;
+  const op = Number(state.watermarkOpacity);
+  span.style.opacity = String(isFinite(op) && op > 0 ? op : 0.22);
+  layer.appendChild(span);
+  host.appendChild(layer);
+  function move(){
+    const maxLeft = Math.max(0, 100 - Math.min(90, (span.offsetWidth / Math.max(1, layer.offsetWidth)) * 100) - 4);
+    span.style.left = (4 + Math.random() * maxLeft) + '%';
+    span.style.top = (8 + Math.random() * 78) + '%';
+  }
+  move();
+  watermarkTimer = setInterval(move, 7000);
+}
+function stopWatermark(){
+  if(watermarkTimer){ clearInterval(watermarkTimer); watermarkTimer = null; }
+  const old = document.getElementById('doorWatermark');
+  if(old) old.remove();
+}
+// If a browser's own fullscreen button fullscreens just the <video>, the
+// watermark would be left behind — fullscreen the whole viewer instead.
+document.addEventListener('fullscreenchange', function(){
+  const fs = document.fullscreenElement;
+  const stage = document.getElementById('doorStage');
+  if(fs && fs.id === 'doorStageVideo' && stage && document.getElementById('doorWatermark')){
+    document.exitFullscreen().then(function(){ if(stage.requestFullscreen) stage.requestFullscreen().catch(function(){}); }).catch(function(){});
+  }
+});
+
 async function openDoor(doorId){
   if(Date.now() - playLinksAt > PLAY_LINK_REFRESH_MS){
     showToast('Loading…');
@@ -2379,7 +2445,7 @@ function openDoorNow(doorId){
     stageContent.innerHTML =
       '<div style="position:relative;flex-shrink:0;width:min(90vw,calc(90vh*9/16));max-height:90vh;aspect-ratio:9/16;background:#000;margin:0 auto;display:flex;align-items:center;justify-content:center;">' +
         '<div id="doorVideoStatus" style="color:var(--muted);font-family:\'Space Mono\',monospace;font-size:.75rem;text-align:center;padding:1.5rem;">Loading video…</div>' +
-        '<video id="doorStageVideo" src="' + escapeHtml(playSrc(door)) + '" controls playsinline preload="auto" controlsList="nodownload" oncontextmenu="return false;" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;"></video>' +
+        '<video id="doorStageVideo" src="' + escapeHtml(playSrc(door)) + '" controls playsinline disablepictureinpicture preload="auto" controlsList="nodownload" oncontextmenu="return false;" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;"></video>' +
       '</div>';
   }else if(door.type === 'image'){
     stageContent.innerHTML = '<img src="' + escapeHtml(playSrc(door)) + '" oncontextmenu="return false;" draggable="false" style="width:100%;max-height:90vh;object-fit:contain;display:block;margin:0 auto;user-select:none;-webkit-user-drag:none;"/>';
@@ -2390,6 +2456,7 @@ function openDoorNow(doorId){
   }
 
   stage.classList.add('active');
+  if(door.type === 'video' || door.type === 'image') startWatermark();
 
   const vid = document.getElementById('doorStageVideo');
   if(vid && lastOpenedDoorWasFree){
@@ -2446,7 +2513,9 @@ function closeDoorViewer(){
   const stage = document.getElementById('doorStage');
   const stageContent = document.getElementById('doorStageContent');
   if(stage) stage.classList.remove('active');
+  stopWatermark();
   if(stageContent) stageContent.innerHTML = ''; // stop playback
+  if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function(){});
 
   // This is the core conversion moment: they just watched the free sample,
   // so hit them with the upgrade prompt right as they come back out.
@@ -3030,6 +3099,11 @@ function renderAdminPanel(){
   renderEmailExpiryList();
   renderFreeEmailsList();
   document.getElementById('aRequireVerify').checked = state.requireEmailVerification !== false;
+  document.getElementById('aWmEnabled').checked = state.watermarkEnabled !== false;
+  const wmOp = isFinite(Number(state.watermarkOpacity)) && Number(state.watermarkOpacity) > 0 ? Number(state.watermarkOpacity) : 0.22;
+  document.getElementById('aWmOpacity').value = wmOp;
+  document.getElementById('aWmOpacityVal').textContent = Math.round(wmOp * 100) + '%';
+  document.getElementById('aWmFree').checked = !!state.watermarkFree;
   document.getElementById('aShowDoorPlaque').checked = state.showDoorPlaque !== false;
   const lockCenter = state.lockStyle === 'center';
   document.getElementById('aLockStyleHandle').classList.toggle('active', !lockCenter);
