@@ -128,6 +128,17 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .trial-unlock-btn{background:var(--gold);color:#000;border:none;padding:.55rem 1.1rem;border-radius:8px;font-weight:800;font-size:.78rem;cursor:pointer;font-family:'Syne',sans-serif;white-space:nowrap;}
 
 /* welcome video banner */
+/* Top of the room: welcome video and "Chat with VYRA" side by side (stacked on phones) */
+.room-top-row{display:flex;gap:1rem;justify-content:center;align-items:stretch;flex-wrap:wrap;max-width:940px;margin:0 auto 1.8rem;}
+.room-top-row #welcomeBanner{margin:0;flex:1 1 360px;}
+#chatInvite{display:none;flex:1 1 260px;max-width:460px;border:1px solid var(--gold);border-radius:14px;background:var(--surface2);padding:1.4rem 1.2rem;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:.6rem;cursor:pointer;}
+#chatInvite.show{display:flex;}
+#chatInvite .ci-avatar{width:84px;height:84px;border-radius:50%;border:2px solid var(--gold);object-fit:cover;box-shadow:0 0 0 0 rgba(245,200,66,.55);animation:ciPulse 2.4s ease-out infinite;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:2rem;}
+@keyframes ciPulse{0%{box-shadow:0 0 0 0 rgba(245,200,66,.55);}70%{box-shadow:0 0 0 14px rgba(245,200,66,0);}100%{box-shadow:0 0 0 0 rgba(245,200,66,0);}}
+#chatInvite .ci-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--text);}
+#chatInvite .ci-sub{color:var(--muted);font-size:.84rem;line-height:1.45;max-width:260px;}
+#chatInvite .ci-btn{background:var(--gold);color:#000;border:none;border-radius:999px;padding:.7rem 1.4rem;font-family:'Syne',sans-serif;font-weight:800;font-size:.9rem;cursor:pointer;margin-top:.2rem;}
+#chatInvite .ci-left{font-size:.74rem;color:var(--gold);font-family:'Space Mono',monospace;}
 #welcomeBanner{margin:0 auto 1.8rem;max-width:460px;border-radius:14px;overflow:hidden;border:1px solid var(--gold);cursor:pointer;background:var(--surface2);}
 .welcome-inner{position:relative;width:100%;aspect-ratio:1/1;background:#000;}
 #welcomeVideo{width:100%;height:100%;object-fit:cover;display:none;}
@@ -494,6 +505,8 @@ html.bw-opening #bwOpening{display:flex;}
       <button class="trial-unlock-btn" onclick="goToStripe()">🔓 Unlock All Doors</button>
     </div>
 
+    <!-- top of the room: welcome video + chat invite, side by side -->
+    <div class="room-top-row">
     <!-- welcome video banner -->
     <div id="welcomeBanner" onclick="replayWelcome()">
       <div class="welcome-inner">
@@ -504,6 +517,16 @@ html.bw-opening #bwOpening{display:flex;}
           <div class="welcome-tap-label">Tap to replay welcome message</div>
         </div>
       </div>
+    </div>
+    <!-- chat invite: lives inside the room (after email), next to the welcome video -->
+    <div id="chatInvite" onclick="openChatTierModal()">
+      <img class="ci-avatar" id="chatInviteAvatar" alt="VYRA" style="display:none;"/>
+      <div class="ci-avatar" id="chatInviteAvatarFallback">💬</div>
+      <div class="ci-title">Come chat with me</div>
+      <div class="ci-sub">Talk with VYRA one-on-one. She texts back, and you can hear her voice too.</div>
+      <button class="ci-btn" onclick="event.stopPropagation();openChatTierModal();">💬 Chat with VYRA</button>
+      <div class="ci-left" id="chatInviteLeft"></div>
+    </div>
     </div>
 
     <!-- doors -->
@@ -2012,6 +2035,7 @@ function previewAsVisitor(kind){
 }
 function openContentRoom(){
   document.getElementById('contentOverlay').classList.add('active');
+  renderChatWidget(); // chat appears only inside the room
   document.getElementById('contentNoticeText').innerHTML = renderMemberNotice(state.disclaimer);
   welcomeHasPlayed = false; // play welcome video again each time the room opens
   renderWelcomeBanner();
@@ -2035,6 +2059,7 @@ window.addEventListener('pagehide', stopRoomMedia);
 function closeContentRoom(){
   stopRoomMedia();
   document.getElementById('contentOverlay').classList.remove('active');
+  renderChatWidget(); // hide the floating chat button again on the front page
   if(trialCountdownInterval){ clearInterval(trialCountdownInterval); trialCountdownInterval = null; }
   if(contentPreviewFromAdmin){
     contentPreviewFromAdmin = false;
@@ -2668,11 +2693,31 @@ let chatHistory = [];
 let chatCredits = { remaining: 0, expiresAt: 0 }; // expiresAt only set for the Unlimited tier
 let chatFanProfile = ''; // standing memory of this fan, carried across visits on this device
 
+// Chat lives INSIDE the room only (after the visitor has entered their
+// email): a "Chat with VYRA" card next to the welcome video, plus the
+// floating yellow button while the room is open. Nothing on the front page.
+function roomIsOpen(){
+  const o = document.getElementById('contentOverlay');
+  return !!(o && o.classList.contains('active'));
+}
 function renderChatWidget(){
   const widget = document.getElementById('chatWidget');
-  if(widget) widget.style.display = state.chatEnabled ? 'block' : 'none';
+  if(widget) widget.style.display = (state.chatEnabled && roomIsOpen()) ? 'block' : 'none';
   renderChatAvatar();
   updateChatBubbleLabel();
+  renderChatInvite();
+}
+function renderChatInvite(){
+  const card = document.getElementById('chatInvite');
+  if(!card) return;
+  card.classList.toggle('show', !!state.chatEnabled);
+  const img = document.getElementById('chatInviteAvatar');
+  const fb = document.getElementById('chatInviteAvatarFallback');
+  if(state.chatAvatarImage){ img.src = state.chatAvatarImage; img.style.display = 'block'; fb.style.display = 'none'; }
+  else{ img.style.display = 'none'; fb.style.display = 'flex'; }
+  loadChatCredits();
+  const left = document.getElementById('chatInviteLeft');
+  left.textContent = chatCredits.remaining > 0 ? (chatCredits.remaining + ' messages left') : '';
 }
 // The "Come chat with me" callout is meant to introduce first-time
 // visitors to the chat feature — it hides itself permanently once someone
@@ -2685,7 +2730,9 @@ function updateChatBubbleLabel(){
   let dismissed = false;
   try{ dismissed = localStorage.getItem('bw_chat_label_dismissed') === '1'; }catch(e){}
   const everUsedChat = !!(chatCredits && (chatCredits.remaining > 0 || chatCredits.expiresAt));
-  label.style.display = (dismissed || everUsedChat) ? 'none' : 'block';
+  // The "Chat with VYRA" card next to the welcome video now does this job,
+  // so the floating callout stays hidden (it covered the card on phones).
+  label.style.display = 'none';
 }
 function dismissChatBubbleLabel(){
   try{ localStorage.setItem('bw_chat_label_dismissed', '1'); }catch(e){}
@@ -2715,6 +2762,7 @@ function setChatBalance(remaining, expiresAt){
   chatCredits = { remaining: Math.max(0, Number(remaining) || 0), expiresAt: Number(expiresAt) || 0 };
   saveChatCredits();
   updateChatCreditsBadge();
+  renderChatInvite();
 }
 async function refreshChatBalance(){
   const id = getChatWalletId();
