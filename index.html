@@ -116,7 +116,12 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 /* ===== THE CONTENT ROOM (doors + welcome video) ===== */
 #contentOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.98);z-index:8000;overflow-y:auto;}
 #contentOverlay.active{display:block;}
-.content-wrap{max-width:900px;margin:0 auto;padding:2rem 1.5rem;}
+.content-wrap{max-width:900px;margin:0 auto;padding:2rem 1.5rem;transition:margin .35s ease;}
+/* On wider screens, while the chat window is open the room slides left so
+   the chat sits beside the doors instead of on top of them. */
+@media (min-width: 820px){
+  body.chat-open #contentOverlay .content-wrap{margin-left:max(0px, calc((100vw - 900px - 400px) / 2));margin-right:400px;}
+}
 .content-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;}
 .content-head .tag{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;}
 .content-head .title{font-size:1.8rem;font-weight:900;}
@@ -2910,6 +2915,7 @@ function updateChatCreditsBadge(){
 }
 function openChatWindow(){
   document.getElementById('chatWindow').classList.add('active');
+  document.body.classList.add('chat-open');
   updateChatCreditsBadge();
   const canSend = hasChatAccess();
   const input = document.getElementById('chatInput');
@@ -2919,6 +2925,7 @@ function openChatWindow(){
 }
 function minimizeChatWindow(){
   document.getElementById('chatWindow').classList.remove('active');
+  document.body.classList.remove('chat-open');
 }
 // Converts a message into safe HTML with clickable links — used for chat
 // replies, which come from an AI model rather than admin-controlled text,
