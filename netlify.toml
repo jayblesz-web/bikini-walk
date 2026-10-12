@@ -1,7 +1,5 @@
 [build]
-  # Installs function dependencies and builds the price list (catalog.json)
-  # from index.html, so the checkout always charges the prices in the site file.
-  command = "npm install --prefix netlify/functions && node netlify/build-catalog.js"
+  command = "npm install --prefix netlify/functions"
   publish = "."
 
 [functions]
