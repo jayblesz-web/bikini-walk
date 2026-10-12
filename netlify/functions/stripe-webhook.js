@@ -151,6 +151,12 @@ exports.handler = async function (event) {
   }
 
   const session = stripeEvent.data && stripeEvent.data.object ? stripeEvent.data.object : {};
+
+  // The Stripe account is shared with Digital 1 Music. Its checkouts are
+  // tagged metadata.site = "digital1music" — those aren't Bikini Walk sales.
+  if (session.metadata && session.metadata.site && session.metadata.site !== 'bikiniwalk') {
+    return { statusCode: 200, body: 'Not a Bikini Walk sale' };
+  }
   const paid = session.payment_status === 'paid' || session.payment_status === 'no_payment_required';
   if (!paid) {
     // e.g. a bank payment still pending — Stripe sends async_payment_succeeded later.
