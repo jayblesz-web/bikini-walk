@@ -383,10 +383,19 @@ async function creditWallet(store, walletId, tier, email){
   } else {
     wallet.remaining = (wallet.remaining || 0) + (Number(tier.messages) || 0);
   }
+  // Voice-call packs (Admin -> Voice Calls) add call time, kept in seconds.
+  const callMinutes = Number(tier.minutes) || 0;
+  if (callMinutes > 0) wallet.callSeconds = (wallet.callSeconds || 0) + Math.round(callMinutes * 60);
   if (email && !wallet.email) wallet.email = email;
   wallet.updatedAt = Date.now();
   await store.setJSON('wallet:' + id, wallet);
-  return { walletId: id, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0 };
+  return { walletId: id, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0, callSeconds: wallet.callSeconds || 0 };
+}
+// Chat message packs and voice-call packs both use "chat_<tierId>_..." Stripe refs.
+function allPackTiers(state){
+  const chat = Array.isArray(state && state.chatTiers) ? state.chatTiers : [];
+  const call = Array.isArray(state && state.callTiers) ? state.callTiers : [];
+  return chat.concat(call);
 }
 
 async function startTrialFor(store, email){
@@ -587,7 +596,8 @@ exports.handler = async function (event) {
       const w = /^[a-f0-9]{48}$/.test(id) ? await store.get('wallet:' + id, { type: 'json' }) : null;
       const expired = w && w.expiresAt && Date.now() > w.expiresAt;
       return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(
-        w && !expired ? { valid: true, remaining: w.remaining || 0, expiresAt: w.expiresAt || 0 } : { valid: false, remaining: 0, expiresAt: 0 }) };
+        w && !expired ? { valid: true, remaining: w.remaining || 0, expiresAt: w.expiresAt || 0, callSeconds: w.callSeconds || 0 }
+          : { valid: false, remaining: 0, expiresAt: 0, callSeconds: (w && w.callSeconds) || 0 }) };
     }
 
     // A returning member's browser shows its pass; if it's genuine and their
@@ -621,7 +631,7 @@ exports.handler = async function (event) {
           if (purchase.claimed) {
             return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', alreadyClaimed: true }) };
           }
-          const tiers = Array.isArray(siteState.chatTiers) ? siteState.chatTiers : [];
+          const tiers = allPackTiers(siteState);
           const tier = tiers.find(function (t) { return t.id === purchase.tierId; });
           if (!tier) {
             return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paid: true, kind: 'chat', problem: 'mismatch' }) };

@@ -178,7 +178,9 @@ exports.handler = async function (event) {
     // cheap link can't be relabeled as an expensive pack.
     let tierOk = true;
     if (info.kind === 'chat') {
-      const tiers = Array.isArray(stored.state.chatTiers) ? stored.state.chatTiers : [];
+      // Chat message packs and voice-call packs share the "chat_" reference.
+      const tiers = (Array.isArray(stored.state.chatTiers) ? stored.state.chatTiers : [])
+        .concat(Array.isArray(stored.state.callTiers) ? stored.state.callTiers : []);
       const tier = tiers.find(function (t) { return t.id === info.tierId; });
       const expected = tier ? priceLabelToCents(tier.priceLabel) : null;
       if (!tier) tierOk = false;
