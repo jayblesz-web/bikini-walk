@@ -353,6 +353,13 @@ html.bw-opening #bwOpening{display:flex;}
 .door-stage{position:fixed;inset:0;z-index:9500;background:#000;display:none;}
 .door-stage.active{display:block;}
 .door-stage-content{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;}
+/* Our own full-screen button (sits left of the ✕). It expands the whole
+   viewer, so the email watermark stays on screen. */
+.door-stage .door-stage-fs{right:calc(1rem + 52px);font-size:1.15rem;}
+.door-stage-fs.hidden{display:none;}
+/* While full screen, let the video use the whole screen height. */
+#doorStage:fullscreen .door-stage-content > div{width:min(100vw,calc(100vh*9/16)) !important;max-height:100vh !important;}
+#doorStage:-webkit-full-screen .door-stage-content > div{width:min(100vw,calc(100vh*9/16)) !important;max-height:100vh !important;}
 /* Viewer watermark: the member's email, faint, drifting slowly over the video.
    pointer-events:none so it never blocks play/pause/seek. */
 .door-watermark{position:absolute;inset:0;z-index:5;pointer-events:none;overflow:hidden;}
@@ -596,6 +603,7 @@ html.bw-opening #bwOpening{display:flex;}
     <!-- door stage: opens directly to the content, no swing animation -->
     <div id="doorStage" class="door-stage">
       <button onclick="closeDoorViewer()" class="door-stage-close">✕</button>
+      <button onclick="toggleDoorFullscreen()" class="door-stage-close door-stage-fs" id="doorFsBtn" title="Full screen" aria-label="Full screen">⛶</button>
       <div class="door-stage-content" id="doorStageContent"></div>
     </div>
   </div>
@@ -2526,15 +2534,59 @@ function stopWatermark(){
   const old = document.getElementById('doorWatermark');
   if(old) old.remove();
 }
-// If a browser's own fullscreen button fullscreens just the <video>, the
-// watermark would be left behind — fullscreen the whole viewer instead.
-document.addEventListener('fullscreenchange', function(){
-  const fs = document.fullscreenElement;
+// Full screen for door videos/photos. Our ⛶ button fullscreens the whole
+// viewer (video + watermark). Browsers that still show their own expand
+// button (Firefox, Safari) fullscreen just the <video>: we then try to
+// switch to the whole viewer, and if the browser says no, the video simply
+// stays full screen. (Before, it left full screen and couldn't get back in,
+// because browsers only allow entering full screen right after a click.)
+function doorStageFullscreenEl(){
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+function toggleDoorFullscreen(){
+  const stage = document.getElementById('doorStage');
+  const vid = document.getElementById('doorStageVideo');
+  if(!stage) return;
+  if(doorStageFullscreenEl()){
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if(exit){ try{ const r = exit.call(document); if(r && r.catch) r.catch(function(){}); }catch(e){} }
+    return;
+  }
+  const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+  if(req){
+    try{
+      const r = req.call(stage);
+      if(r && r.catch) r.catch(function(){ if(vid && vid.webkitEnterFullscreen) vid.webkitEnterFullscreen(); });
+    }catch(e){ if(vid && vid.webkitEnterFullscreen) vid.webkitEnterFullscreen(); }
+  }else if(vid && vid.webkitEnterFullscreen){
+    vid.webkitEnterFullscreen(); // iPhone: only the video itself can go full screen
+  }
+}
+function updateDoorFsButton(){
+  const btn = document.getElementById('doorFsBtn');
+  if(!btn) return;
+  const vid = document.getElementById('doorStageVideo');
+  const img = document.querySelector('#doorStageContent img');
+  const stage = document.getElementById('doorStage');
+  const canFs = !!(stage && (stage.requestFullscreen || stage.webkitRequestFullscreen));
+  // Show it for videos/photos where the browser supports it (iPhone uses the video's own button).
+  btn.classList.toggle('hidden', !((vid || img) && canFs));
+  const on = !!doorStageFullscreenEl();
+  btn.textContent = on ? '🗗' : '⛶';
+  btn.title = on ? 'Exit full screen' : 'Full screen';
+}
+function onDoorFullscreenChange(){
+  const fs = doorStageFullscreenEl();
   const stage = document.getElementById('doorStage');
   if(fs && fs.id === 'doorStageVideo' && stage && document.getElementById('doorWatermark')){
-    document.exitFullscreen().then(function(){ if(stage.requestFullscreen) stage.requestFullscreen().catch(function(){}); }).catch(function(){});
+    // Try to swap to the whole viewer without leaving full screen first.
+    const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+    if(req){ try{ const r = req.call(stage); if(r && r.catch) r.catch(function(){}); }catch(e){} }
   }
-});
+  updateDoorFsButton();
+}
+document.addEventListener('fullscreenchange', onDoorFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onDoorFullscreenChange);
 
 async function openDoor(doorId){
   if(Date.now() - playLinksAt > PLAY_LINK_REFRESH_MS){
@@ -2579,7 +2631,7 @@ function openDoorNow(doorId){
     stageContent.innerHTML =
       '<div style="position:relative;flex-shrink:0;width:min(90vw,calc(90vh*9/16));max-height:90vh;aspect-ratio:9/16;background:#000;margin:0 auto;display:flex;align-items:center;justify-content:center;">' +
         '<div id="doorVideoStatus" style="color:var(--muted);font-family:\'Space Mono\',monospace;font-size:.75rem;text-align:center;padding:1.5rem;">Loading video…</div>' +
-        '<video id="doorStageVideo" src="' + escapeHtml(playSrc(door)) + '" controls playsinline disablepictureinpicture preload="auto" controlsList="nodownload" oncontextmenu="return false;" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;"></video>' +
+        '<video id="doorStageVideo" src="' + escapeHtml(playSrc(door)) + '" controls playsinline disablepictureinpicture preload="auto" controlsList="nodownload nofullscreen" oncontextmenu="return false;" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;"></video>' +
       '</div>';
   }else if(door.type === 'image'){
     stageContent.innerHTML = '<img src="' + escapeHtml(playSrc(door)) + '" oncontextmenu="return false;" draggable="false" style="width:100%;max-height:90vh;object-fit:contain;display:block;margin:0 auto;user-select:none;-webkit-user-drag:none;"/>';
@@ -2591,6 +2643,7 @@ function openDoorNow(doorId){
 
   stage.classList.add('active');
   if(door.type === 'video' || door.type === 'image') startWatermark();
+  updateDoorFsButton();
 
   const vid = document.getElementById('doorStageVideo');
   if(vid && lastOpenedDoorWasFree){
