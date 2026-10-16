@@ -1083,6 +1083,15 @@ html.bw-opening #bwOpening{display:flex;}
           </div>
         </div>
         <p style="color:var(--muted);font-size:.78rem;margin-bottom:1rem;">Fans buy call minutes, then talk to VYRA live (her ElevenLabs "VYRA Calls" agent — personality and voice are set in ElevenLabs). Each call lasts up to 10 minutes; fans are only charged for the time they actually talk. In Stripe, set each Payment Link's "After payment" redirect to <b>https://bikiniwalk.net/?bwchat=success</b> (same as the chat packs).</p>
+        <label class="admin-label">Call photo (shown big on the call screen — a tall/portrait photo works best)</label>
+        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;">
+          <img id="aCallPhotoPreview" style="width:45px;height:60px;object-fit:cover;border-radius:6px;background:var(--surface2);"/>
+          <label class="small-btn" for="aCallPhotoFileInput" style="cursor:pointer;">Upload</label>
+          <input type="file" id="aCallPhotoFileInput" accept="image/*" style="display:none;" onchange="uploadCallPhoto(event)"/>
+          <button class="remove-door-btn" id="clearCallPhotoBtn" style="display:none;" onclick="clearCallPhoto()" title="Remove photo">✕</button>
+        </div>
+        <input class="admin-input" id="aCallPhotoUrl" placeholder="Or paste an image URL" onchange="setCallPhotoFromUrl(this.value)" style="margin-bottom:.3rem;"/>
+        <p style="color:var(--muted);font-size:.72rem;margin:0 0 1rem;">Leave empty to use the chat avatar photo.</p>
         <label class="admin-label">Monthly limit</label>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.5rem;">
           <div><div style="font-size:.7rem;color:var(--muted);margin-bottom:.2rem;">Max call minutes per month</div>
@@ -1306,6 +1315,7 @@ let state = {
     }
   ],
   "callEnabled": false,
+  "callPhoto": "",
   "callMonthlyLimit": 230,
   "callLimitResetDay": 7,
   "callTiers": [
@@ -3355,6 +3365,7 @@ function renderAdminPanel(){
   renderChatTiersAdmin();
   document.getElementById('aCallEnabled').checked = !!state.callEnabled;
   document.getElementById('aCallLimit').value = Number(state.callMonthlyLimit) || 0;
+  renderCallPhotoAdmin();
   document.getElementById('aCallResetDay').value = Number(state.callLimitResetDay) || 1;
   renderCallTiersAdmin();
   loadCallStats();
@@ -3727,7 +3738,8 @@ function renderCallInvite(){
   card.classList.toggle('show', !!state.callEnabled);
   const img = document.getElementById('callInviteAvatar');
   const fb = document.getElementById('callInviteAvatarFallback');
-  if(state.chatAvatarImage){ img.src = state.chatAvatarImage; img.style.display = 'block'; fb.style.display = 'none'; }
+  const photo = callPhotoSrc();
+  if(photo){ img.src = photo; img.style.display = 'block'; fb.style.display = 'none'; }
   else{ img.style.display = 'none'; fb.style.display = 'flex'; }
   const left = document.getElementById('callInviteLeft');
   if(left) left.textContent = callSeconds > 0 ? (callTimeLabel(callSeconds) + ' left') : '';
@@ -3787,7 +3799,8 @@ function setCallButtons(mode){ // 'idle' | 'connecting' | 'live' | 'empty'
 function openCallPanel(){
   const img = document.getElementById('callAvatarImg');
   const fb = document.getElementById('callAvatarFallback');
-  if(state.chatAvatarImage){ img.src = state.chatAvatarImage; img.style.display = 'block'; fb.style.display = 'none'; }
+  const photo = callPhotoSrc();
+  if(photo){ img.src = photo; img.style.display = 'block'; fb.style.display = 'none'; }
   else{ img.style.display = 'none'; fb.style.display = 'flex'; }
   document.getElementById('callPanel').classList.add('active');
   if(callSession) return;
@@ -3971,7 +3984,58 @@ window.addEventListener('pagehide', function(){
   if(callSession){ try{ callSession.endSession(); }catch(e){} }
 });
 
+// The call's own photo (Admin → Voice Calls), or the chat photo if none.
+function callPhotoSrc(){ return state.callPhoto || state.chatAvatarImage || ''; }
+
 // ── Voice Calls admin ──
+function renderCallPhotoAdmin(){
+  const prev = document.getElementById('aCallPhotoPreview');
+  if(!prev) return;
+  prev.src = state.callPhoto || '';
+  prev.style.visibility = state.callPhoto ? 'visible' : 'hidden';
+  document.getElementById('aCallPhotoUrl').value = (state.callPhoto && state.callPhoto.indexOf('data:') !== 0) ? state.callPhoto : '';
+  document.getElementById('clearCallPhotoBtn').style.display = state.callPhoto ? 'flex' : 'none';
+}
+// Uploaded photos are shrunk (max 900px tall, JPEG) so the site settings stay small.
+function uploadCallPhoto(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const im = new Image();
+    im.onload = function(){
+      const scale = Math.min(1, 900 / Math.max(im.width, im.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.width * scale); c.height = Math.round(im.height * scale);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      state.callPhoto = c.toDataURL('image/jpeg', 0.85);
+      renderCallPhotoAdmin();
+      saveState();
+      renderCallInvite();
+      showToast('✓ Call photo updated');
+    };
+    im.onerror = function(){ showToast('⚠ Could not read that image'); };
+    im.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+function setCallPhotoFromUrl(url){
+  const trimmed = (url || '').trim();
+  if(!trimmed) return;
+  state.callPhoto = trimmed;
+  renderCallPhotoAdmin();
+  saveState();
+  renderCallInvite();
+  showToast('✓ Call photo updated');
+}
+function clearCallPhoto(){
+  state.callPhoto = '';
+  renderCallPhotoAdmin();
+  saveState();
+  renderCallInvite();
+  showToast('Call photo removed — the chat photo will be used');
+}
 function renderCallTiersAdmin(){
   const wrap = document.getElementById('callTiersAdminList');
   if(!wrap) return;
