@@ -274,6 +274,15 @@ exports.handler = async function (event) {
     if (!wallet) return reply(402, { error: 'no_minutes', callSeconds: 0 });
 
     if (action === 'status') {
+      if (wallet.email) {
+        try {
+          const em = String(wallet.email).trim().toLowerCase();
+          const link = await store.get('emailwallet:' + em, { type: 'json' });
+          if (!link || !link.walletId || !(await store.get('wallet:' + link.walletId, { type: 'json' }))) {
+            await store.setJSON('emailwallet:' + em, { walletId: walletId, at: Date.now() });
+          }
+        } catch (e) { console.error('bw-call: emailwallet backfill failed', e); }
+      }
       const s = await settlePending(store, walletId);
       const w = s.wallet || wallet;
       return reply(200, { callSeconds: w.callSeconds || 0, pending: !!w.pendingCall });

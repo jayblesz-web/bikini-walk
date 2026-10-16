@@ -359,9 +359,36 @@ async function memberSessionPayload(store, state, email){
     email: email,
     grantedAt: info.grantedAt,
     token: await makeMemberToken(store, email),
+    walletId: await walletForEmail(store, email),
     doors: paidDoorContent(state),
     welcomeMemberUrl: (state.welcomeVideoMember && state.welcomeVideoMember.url) ? playableUrl(state.welcomeVideoMember.url) : '',
   };
+}
+
+// ---- Email → wallet link ----
+// Chat messages and call minutes live in a wallet whose id the buying browser
+// keeps. 'emailwallet:<email>' remembers which wallet an email's purchases
+// went into, so after the buyer proves they own the email (sign-in link or
+// member pass) any of their devices can use the same balance.
+function cleanEmail(e){ return String(e || '').trim().toLowerCase(); }
+async function walletForEmail(store, email){
+  email = cleanEmail(email);
+  if (!email) return '';
+  try {
+    const link = await store.get('emailwallet:' + email, { type: 'json' });
+    const id = link && link.walletId;
+    if (!/^[a-f0-9]{48}$/.test(String(id || ''))) return '';
+    const w = await store.get('wallet:' + id, { type: 'json' });
+    return w ? id : '';
+  } catch (e) { return ''; }
+}
+async function linkWalletToEmail(store, email, walletId){
+  email = cleanEmail(email);
+  if (!email || !/^[a-f0-9]{48}$/.test(String(walletId || ''))) return;
+  try {
+    if (await walletForEmail(store, email)) return; // keep the first one
+    await store.setJSON('emailwallet:' + email, { walletId: walletId, at: Date.now() });
+  } catch (e) { console.error('emailwallet link failed:', e); }
 }
 
 // ---- Chat balances (server-side) ----
@@ -372,6 +399,11 @@ async function memberSessionPayload(store, state, email){
 async function creditWallet(store, walletId, tier, email){
   let id = /^[a-f0-9]{48}$/.test(String(walletId || '')) ? walletId : '';
   let wallet = id ? await store.get('wallet:' + id, { type: 'json' }) : null;
+  if (!wallet && email) {
+    // New device, but this email already has a balance: add to that one.
+    const existing = await walletForEmail(store, email);
+    if (existing) { id = existing; wallet = await store.get('wallet:' + id, { type: 'json' }); }
+  }
   if (!wallet) {
     id = require('crypto').randomBytes(24).toString('hex');
     wallet = { remaining: 0, expiresAt: 0, email: email || '', createdAt: Date.now() };
@@ -393,6 +425,7 @@ async function creditWallet(store, walletId, tier, email){
   if (email && !wallet.email) wallet.email = email;
   wallet.updatedAt = Date.now();
   await store.setJSON('wallet:' + id, wallet);
+  await linkWalletToEmail(store, wallet.email, id);
   return { walletId: id, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0, callSeconds: wallet.callSeconds || 0 };
 }
 // ---- Monthly call-minute limit (Admin → Voice Calls) ----
@@ -572,7 +605,8 @@ exports.handler = async function (event) {
         return {
           statusCode: 200,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ success: true, email: email, startedAt: trial.startedAt, memberExpired: !!member.expired }),
+          body: JSON.stringify({ success: true, email: email, startedAt: trial.startedAt, memberExpired: !!member.expired,
+            walletId: await walletForEmail(store, email) }),
         };
       } catch (err) {
         console.error('verify-magic-link error:', err);
@@ -623,6 +657,7 @@ exports.handler = async function (event) {
     if (body.action === 'chat-wallet') {
       const id = String(body.walletId || '');
       const w = /^[a-f0-9]{48}$/.test(id) ? await store.get('wallet:' + id, { type: 'json' }) : null;
+      if (w && w.email) await linkWalletToEmail(store, w.email, id); // wallets bought before this link existed
       const expired = w && w.expiresAt && Date.now() > w.expiresAt;
       return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(
         w && !expired ? { valid: true, remaining: w.remaining || 0, expiresAt: w.expiresAt || 0, callSeconds: w.callSeconds || 0 }
