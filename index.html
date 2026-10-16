@@ -2985,6 +2985,7 @@ function hasChatAccess(){
 }
 
 function openChatTierModal(){
+  try{ stopWelcome(); }catch(e){} // the welcome video shouldn't keep playing under the chat
   if(hasChatAccess()){
     openChatWindow();
     return;
@@ -3101,6 +3102,7 @@ function updateChatCreditsBadge(){
   }
 }
 function openChatWindow(){
+  try{ stopWelcome(); }catch(e){} // the welcome video shouldn't keep playing under the chat
   document.getElementById('chatWindow').classList.add('active');
   document.body.classList.add('chat-open');
   updateChatCreditsBadge();
@@ -3749,6 +3751,7 @@ function openCallFlow(){
   else openCallTierModal();
 }
 async function openCallTierModal(){
+  try{ stopWelcome(); }catch(e){}
   const list = document.getElementById('callTierList');
   list.innerHTML = '<p style="color:var(--muted);">Loading…</p>';
   document.getElementById('callTierModal').classList.add('active');
@@ -3797,6 +3800,7 @@ function setCallButtons(mode){ // 'idle' | 'connecting' | 'live' | 'empty'
   show('callNote', mode !== 'live');
 }
 function openCallPanel(){
+  try{ stopWelcome(); }catch(e){}
   const img = document.getElementById('callAvatarImg');
   const fb = document.getElementById('callAvatarFallback');
   const photo = callPhotoSrc();
