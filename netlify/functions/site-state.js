@@ -385,12 +385,41 @@ async function creditWallet(store, walletId, tier, email){
   }
   // Voice-call packs (Admin -> Voice Calls) add call time, kept in seconds.
   const callMinutes = Number(tier.minutes) || 0;
-  if (callMinutes > 0) wallet.callSeconds = (wallet.callSeconds || 0) + Math.round(callMinutes * 60);
+  if (callMinutes > 0) {
+    wallet.callSeconds = (wallet.callSeconds || 0) + Math.round(callMinutes * 60);
+    // Bought-but-not-used time counts toward the monthly call limit.
+    await changeCallStats(store, function (s) { s.outstandingSeconds = (s.outstandingSeconds || 0) + Math.round(callMinutes * 60); });
+  }
   if (email && !wallet.email) wallet.email = email;
   wallet.updatedAt = Date.now();
   await store.setJSON('wallet:' + id, wallet);
   return { walletId: id, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0, callSeconds: wallet.callSeconds || 0 };
 }
+// ---- Monthly call-minute limit (Admin → Voice Calls) ----
+// 'callstats' blob: { outstandingSeconds, usage: { '<period start YYYY-MM-DD>': seconds } }
+//   outstandingSeconds = call time fans have bought but not used yet.
+// The period starts on Admin's "resets on day" (1-28) each month, so it can
+// match the ElevenLabs billing date.
+function callPeriodKey(resetDay, now){
+  const d = Math.min(28, Math.max(1, Math.floor(Number(resetDay) || 1)));
+  const t = new Date(now || Date.now());
+  let y = t.getUTCFullYear(), m = t.getUTCMonth();
+  if (t.getUTCDate() < d) { m -= 1; if (m < 0) { m = 11; y -= 1; } }
+  return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+async function changeCallStats(store, change){
+  try {
+    const s = (await store.get('callstats', { type: 'json' })) || { outstandingSeconds: 0, usage: {} };
+    s.usage = s.usage || {};
+    change(s);
+    s.outstandingSeconds = Math.max(0, Math.round(s.outstandingSeconds || 0));
+    const keys = Object.keys(s.usage).sort();
+    while (keys.length > 13) delete s.usage[keys.shift()];
+    s.updatedAt = Date.now();
+    await store.setJSON('callstats', s);
+  } catch (e) { console.error('callstats update failed:', e); }
+}
+
 // Chat message packs and voice-call packs both use "chat_<tierId>_..." Stripe refs.
 function allPackTiers(state){
   const chat = Array.isArray(state && state.chatTiers) ? state.chatTiers : [];
@@ -698,6 +727,24 @@ exports.handler = async function (event) {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ state: withPlayUrls(siteState), loadedAt: Date.now() }),
+      };
+    }
+
+    // Admin-only: call minutes this period (Admin → Voice Calls).
+    if (body.action === 'call-stats') {
+      if (body.password !== currentPassword) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Not authorized' }) };
+      }
+      const stats = (await store.get('callstats', { type: 'json' })) || { outstandingSeconds: 0, usage: {} };
+      const period = callPeriodKey(siteState.callLimitResetDay);
+      const used = Math.round((stats.usage && stats.usage[period]) || 0);
+      const owed = Math.round(stats.outstandingSeconds || 0);
+      const limitMinutes = Math.floor(Number(siteState.callMonthlyLimit) || 0);
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period: period, usedSeconds: used, owedSeconds: owed, limitMinutes: limitMinutes,
+          remainingSeconds: limitMinutes > 0 ? Math.max(0, limitMinutes * 60 - used - owed) : null }),
       };
     }
 

@@ -34,6 +34,46 @@ const NEVER_CONNECTED_MS = 3 * 60 * 1000;   // no conversation after this → fu
 const STUCK_MS = 20 * 60 * 1000;            // longest a call can still be "wrapping up"
 const CONV_ID_RE = /^[A-Za-z0-9_-]{6,120}$/;
 
+
+// ---- Monthly call-minute limit (Admin → Voice Calls) ----
+// 'callstats' blob: { outstandingSeconds, usage: { '<period start YYYY-MM-DD>': seconds } }
+//   outstandingSeconds = call time fans have bought but not used yet.
+// The period starts on Admin's "resets on day" (1-28) each month, so it can
+// match the ElevenLabs billing date.
+function callPeriodKey(resetDay, now){
+  const d = Math.min(28, Math.max(1, Math.floor(Number(resetDay) || 1)));
+  const t = new Date(now || Date.now());
+  let y = t.getUTCFullYear(), m = t.getUTCMonth();
+  if (t.getUTCDate() < d) { m -= 1; if (m < 0) { m = 11; y -= 1; } }
+  return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+async function changeCallStats(store, change){
+  try {
+    const s = (await store.get('callstats', { type: 'json' })) || { outstandingSeconds: 0, usage: {} };
+    s.usage = s.usage || {};
+    change(s);
+    s.outstandingSeconds = Math.max(0, Math.round(s.outstandingSeconds || 0));
+    const keys = Object.keys(s.usage).sort();
+    while (keys.length > 13) delete s.usage[keys.shift()];
+    s.updatedAt = Date.now();
+    await store.setJSON('callstats', s);
+  } catch (e) { console.error('callstats update failed:', e); }
+}
+
+// What's left to sell this period. limitSeconds 0 = no limit set.
+async function callCapacity(store){
+  const stored = await store.get('state', { type: 'json' });
+  const st = (stored && stored.state) || {};
+  const limitMinutes = Math.floor(Number(st.callMonthlyLimit) || 0);
+  if (!(limitMinutes > 0)) return { limited: false };
+  const stats = (await store.get('callstats', { type: 'json' })) || { outstandingSeconds: 0, usage: {} };
+  const period = callPeriodKey(st.callLimitResetDay);
+  const used = Math.round((stats.usage && stats.usage[period]) || 0);
+  const owed = Math.round(stats.outstandingSeconds || 0);
+  return { limited: true, period: period, limitSeconds: limitMinutes * 60, usedSeconds: used, owedSeconds: owed,
+           remainingSeconds: Math.max(0, limitMinutes * 60 - used - owed) };
+}
+
 function agentId(){ return (process.env.ELEVENLABS_AGENT_ID || DEFAULT_AGENT_ID).trim(); }
 
 function getSiteStore(){
@@ -114,10 +154,11 @@ async function updateWallet(store, walletId, change){
   return w;
 }
 
-function finishCall(w, token, usedSeconds, conversationId){
+function finishCall(w, token, usedSeconds, conversationId, done){
   const p = w.pendingCall;
   if (!p || p.token !== token) return false; // already finished elsewhere
   const used = Math.max(0, Math.min(p.hold, Math.ceil(usedSeconds)));
+  if (done) done.used = used;
   w.callSeconds = Math.max(0, (w.callSeconds || 0) + (p.hold - used));
   w.callLog = (Array.isArray(w.callLog) ? w.callLog : []).concat([{ conversationId: conversationId || '', used: used, at: Date.now() }]).slice(-30);
   delete w.pendingCall;
@@ -127,6 +168,18 @@ function finishCall(w, token, usedSeconds, conversationId){
 // Settles this wallet's last call if it's over. Returns
 // { settled: true, usedSeconds } when there's no open call (anymore),
 // { settled: false } while the call is still going or wrapping up.
+// After a call is billed: count its minutes toward this period's limit.
+async function recordCallUsage(store, used){
+  if (!(used > 0)) return;
+  let resetDay = 1;
+  try { const st = await store.get('state', { type: 'json' }); resetDay = (st && st.state && st.state.callLimitResetDay) || 1; } catch (e) {}
+  const period = callPeriodKey(resetDay);
+  await changeCallStats(store, function (s) {
+    s.outstandingSeconds = (s.outstandingSeconds || 0) - used;
+    s.usage[period] = (s.usage[period] || 0) + used;
+  });
+}
+
 async function settlePending(store, walletId){
   let w = await store.get('wallet:' + walletId, { type: 'json' });
   const p = w && w.pendingCall;
@@ -165,7 +218,9 @@ async function settlePending(store, walletId){
   if (!finished && age <= STUCK_MS) return { settled: false, inCall: conv.status !== 'processing', wallet: w };
   // Stuck without a length: keep the hold (the most the call could have used).
   const used = (finished || conv.duration > 0) ? conv.duration : p.hold;
-  w = await updateWallet(store, walletId, function (x) { return finishCall(x, p.token, used, id); });
+  const done = {};
+  w = await updateWallet(store, walletId, function (x) { return finishCall(x, p.token, used, id, done); });
+  if (done.used) await recordCallUsage(store, done.used);
   return { settled: true, usedSeconds: Math.min(p.hold, Math.ceil(used)), wallet: w };
 }
 
@@ -198,9 +253,22 @@ exports.handler = async function (event) {
 
   const action = String(body.action || '');
   const walletId = String(body.walletId || '');
+  const store = getSiteStore();
+
+  // Public: how much call time can still be sold this period (only the
+  // remaining amount is shared, not sales numbers).
+  if (action === 'capacity') {
+    try {
+      const c = await callCapacity(store);
+      return reply(200, c.limited ? { limited: true, remainingSeconds: c.remainingSeconds } : { limited: false });
+    } catch (e) {
+      console.error('bw-call capacity error:', e);
+      return reply(200, { limited: false });
+    }
+  }
+
   if (!validWalletId(walletId)) return reply(402, { error: 'no_minutes', callSeconds: 0 });
 
-  const store = getSiteStore();
   try {
     const wallet = await store.get('wallet:' + walletId, { type: 'json' });
     if (!wallet) return reply(402, { error: 'no_minutes', callSeconds: 0 });
@@ -273,4 +341,4 @@ exports.handler = async function (event) {
 };
 
 // Exposed for tests only.
-exports._internals = { extractConversationId, settlePending, MAX_CALL_SECONDS };
+exports._internals = { extractConversationId, settlePending, MAX_CALL_SECONDS, callPeriodKey, callCapacity };
