@@ -655,6 +655,7 @@ html.bw-opening #bwOpening{display:flex;}
     <p>Pick a pack. Chat starts the moment payment goes through.</p>
     <div class="chat-tier-list" id="chatTierList"></div>
     <button class="chat-tier-cancel" onclick="closeChatTierModal()">Cancel</button>
+    <button class="chat-tier-cancel" style="display:block;margin:.5rem auto 0;font-size:.78rem;text-decoration:underline;" onclick="restorePurchasesByEmail()">Bought messages on another device? Get them here</button>
     <div class="gate-disclaimer-display" id="chatTierDisclaimerDisplay"></div>
   </div>
 </div>
@@ -666,6 +667,7 @@ html.bw-opening #bwOpening{display:flex;}
     <p>Pick your minutes. You can call as soon as payment goes through. Each call lasts up to 10 minutes, and unused time stays on your account.</p>
     <div class="chat-tier-list" id="callTierList"></div>
     <button class="chat-tier-cancel" onclick="closeCallTierModal()">Cancel</button>
+    <button class="chat-tier-cancel" style="display:block;margin:.5rem auto 0;font-size:.78rem;text-decoration:underline;" onclick="restorePurchasesByEmail()">Bought minutes on another device? Get them here</button>
     <div class="gate-disclaimer-display" id="callTierDisclaimerDisplay"></div>
   </div>
 </div>
@@ -2121,6 +2123,7 @@ async function runMagicLink(token){
       return;
     }
     // (The server already added them to the owner's lead list.)
+    if(data.emailPass){ try{ localStorage.setItem('bw_email_pass', data.emailPass); }catch(e){} }
     adoptEmailWallet(data.walletId);
     beginFreePreview(data.email, data.startedAt);
     showToast(data.memberExpired ? 'Your paid access has ended. Your free preview is open; renew any time.' : '✓ Email verified — your free preview has started');
@@ -2971,6 +2974,35 @@ function adoptEmailWallet(walletId){
   try{ localStorage.setItem('bw_chat_wallet', walletId); }catch(e){ return; }
   refreshChatBalance();
   refreshCallBalance();
+}
+// Free-preview visitors: each page load, pick up a balance bought with this
+// email on another device (members get theirs through restoreMemberSession).
+function restoreEmailWallet(){
+  let pass = '';
+  try{ pass = localStorage.getItem('bw_email_pass') || ''; }catch(e){}
+  if(!pass) return;
+  fetch('/.netlify/functions/site-state', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'email-wallet', token: pass }),
+  }).then(r => r.json()).then(function(d){
+    if(d && d.valid) adoptEmailWallet(d.walletId);
+    else if(d && d.valid === false){ try{ localStorage.removeItem('bw_email_pass'); }catch(e){} }
+  }).catch(function(e){ console.error('email wallet check failed:', e); });
+}
+// "Bought on another device?" — email a sign-in link; opening it on this
+// device brings the balance over.
+async function restorePurchasesByEmail(){
+  let email = (unlockedEmail || freeEnteredEmail || '').trim().toLowerCase();
+  if(!email || email === 'admin-preview' || !email.includes('@')){
+    email = (prompt('Enter the email you used when you paid:') || '').trim().toLowerCase();
+  }
+  if(!email || !email.includes('@')) return;
+  try{
+    await sendSignInLink(email);
+    showToast('📧 Sign-in link sent to ' + email + '. Open it on this device (same browser) and your balance will appear.');
+  }catch(e){
+    showToast('⚠ ' + (e.message || "We couldn't send your link right now."));
+  }
 }
 function getChatWalletId(){
   try{ return localStorage.getItem('bw_chat_wallet') || ''; }catch(e){ return ''; }
@@ -4840,6 +4872,7 @@ async function changeAdminPassword(){
 document.addEventListener('DOMContentLoaded', () => {
   loadLocalState();
   restoreMemberSession();
+  restoreEmailWallet();
   renderFrontPage();
   document.getElementById('footerYear').textContent = new Date().getFullYear();
   checkStripeRedirect();
