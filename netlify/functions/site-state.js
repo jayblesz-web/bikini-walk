@@ -426,6 +426,9 @@ async function creditWallet(store, walletId, tier, email){
   wallet.updatedAt = Date.now();
   await store.setJSON('wallet:' + id, wallet);
   await linkWalletToEmail(store, wallet.email, id);
+  // The email that paid THIS time too (a wallet keeps its first email, and a
+  // later purchase may use a different one).
+  if (email && cleanEmail(email) !== cleanEmail(wallet.email)) await linkWalletToEmail(store, email, id);
   return { walletId: id, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0, callSeconds: wallet.callSeconds || 0 };
 }
 // ---- Monthly call-minute limit (Admin → Voice Calls) ----
@@ -774,6 +777,41 @@ exports.handler = async function (event) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ state: withPlayUrls(siteState), loadedAt: Date.now() }),
       };
+    }
+
+    // Admin-only: look up / link chat+call balances (Admin → Fan balances).
+    if (body.action === 'wallet-admin') {
+      if (body.password !== currentPassword) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Not authorized' }) };
+      }
+      const json = function (o) { return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }; };
+      const summary = async function (id) {
+        if (!/^[a-f0-9]{48}$/.test(String(id || ''))) return null;
+        const w = await store.get('wallet:' + id, { type: 'json' });
+        if (!w) return null;
+        return { walletId: id, email: w.email || '', callSeconds: w.callSeconds || 0, messages: w.remaining || 0,
+                 unlimitedUntil: w.expiresAt || 0, inCall: !!w.pendingCall };
+      };
+      if (body.op === 'lookup') {
+        const email = cleanEmail(body.email);
+        if (!email.includes('@')) return { statusCode: 400, body: JSON.stringify({ error: 'Enter an email' }) };
+        const linkedId = await walletForEmail(store, email);
+        const payments = ((await store.get('payments:' + email, { type: 'json' })) || []).map(function (p) {
+          return { kind: p.kind, tierId: p.tierId || '', amount: p.amount, paidAt: p.paidAt };
+        });
+        return json({ email: email, wallet: await summary(linkedId), payments: payments });
+      }
+      if (body.op === 'wallet') {
+        return json({ wallet: await summary(body.walletId) });
+      }
+      if (body.op === 'link') {
+        const email = cleanEmail(body.email);
+        const w = await summary(body.walletId);
+        if (!email.includes('@') || !w) return { statusCode: 400, body: JSON.stringify({ error: 'Need an email and a balance to link' }) };
+        await store.setJSON('emailwallet:' + email, { walletId: body.walletId, at: Date.now(), byAdmin: true });
+        return json({ ok: true, email: email, wallet: w });
+      }
+      return { statusCode: 400, body: JSON.stringify({ error: 'Unknown op' }) };
     }
 
     // Admin-only: call minutes this period (Admin → Voice Calls).
