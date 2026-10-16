@@ -1427,6 +1427,7 @@ function applyMemberDoorUrls(){
 function applyMemberSession(payload){
   if(!payload || !payload.valid || !payload.token) return false;
   try{ localStorage.setItem('bw_member_token', payload.token); }catch(e){}
+  adoptEmailWallet(payload.walletId);
   memberDoorUrls = {};
   (payload.doors || []).forEach(function(d){ memberDoorUrls[d.id] = d.url; });
   memberWelcomeUrl = payload.welcomeMemberUrl || '';
@@ -2120,6 +2121,7 @@ async function runMagicLink(token){
       return;
     }
     // (The server already added them to the owner's lead list.)
+    adoptEmailWallet(data.walletId);
     beginFreePreview(data.email, data.startedAt);
     showToast(data.memberExpired ? 'Your paid access has ended. Your free preview is open; renew any time.' : '✓ Email verified — your free preview has started');
   }catch(e){
@@ -2957,6 +2959,19 @@ function renderChatAvatar(){
 
 // The real chat balance lives on the server ("wallet"); this browser keeps
 // only the wallet id plus a cached copy of the balance for display.
+// Chat messages + call minutes bought with this email on another device: the
+// server sends that wallet once the email is proven (sign-in link / member
+// pass). Use it unless this device already has a balance of its own.
+function adoptEmailWallet(walletId){
+  if(!/^[a-f0-9]{48}$/.test(String(walletId || ''))) return;
+  const current = getChatWalletId();
+  if(current === walletId) return;
+  const hasOwnBalance = current && ((chatCredits && chatCredits.remaining > 0) || callSeconds > 0);
+  if(hasOwnBalance) return;
+  try{ localStorage.setItem('bw_chat_wallet', walletId); }catch(e){ return; }
+  refreshChatBalance();
+  refreshCallBalance();
+}
 function getChatWalletId(){
   try{ return localStorage.getItem('bw_chat_wallet') || ''; }catch(e){ return ''; }
 }
