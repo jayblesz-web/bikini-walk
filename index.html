@@ -1125,6 +1125,18 @@ html.bw-opening #bwOpening{display:flex;}
       </div>
 
       <div class="admin-section">
+        <div class="admin-section-title">🔎 Fan balances</div>
+        <p style="color:var(--muted);font-size:.78rem;margin-bottom:.8rem;">Look up an email to see the chat messages and call minutes it has, and its purchases. Fans get a balance on any device by signing in with that email.</p>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;">
+          <input class="admin-input" id="aFanLookupEmail" placeholder="fan@email.com" style="flex:1;min-width:200px;margin:0;" onkeydown="if(event.key==='Enter')fanLookup()"/>
+          <button class="small-btn" onclick="fanLookup()">Look up</button>
+        </div>
+        <div id="fanLookupResult" style="font-size:.78rem;line-height:1.6;margin-bottom:1rem;"></div>
+        <label class="admin-label">This browser's balance</label>
+        <div id="fanThisBrowser" style="font-size:.78rem;line-height:1.6;color:var(--muted);"></div>
+      </div>
+
+      <div class="admin-section">
         <div class="admin-section-title">📞 Contact & Legal</div>
         <p style="color:var(--muted);font-size:.78rem;margin-bottom:1rem;">Shown when visitors click "Contact" or "Accessibility Statement" in the footer.</p>
 
@@ -3434,6 +3446,7 @@ function renderAdminPanel(){
   document.getElementById('aCallResetDay').value = Number(state.callLimitResetDay) || 1;
   renderCallTiersAdmin();
   loadCallStats();
+  showThisBrowserWallet();
 
   document.getElementById('aFormspreeEndpoint').value = state.formspreeEndpoint || '';
   document.getElementById('aContactMessage').value = state.contactMessage || '';
@@ -4071,6 +4084,72 @@ function setCallPhotoPos(v){
 function saveCallPhotoPos(){
   saveState();
   showToast('✓ Photo position saved');
+}
+
+// ── Fan balances (Admin) ──
+async function walletAdmin(payload){
+  const res = await fetch('/.netlify/functions/site-state', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ action: 'wallet-admin', password: ADMIN_PASSWORD }, payload)),
+  });
+  const d = await res.json().catch(() => ({}));
+  if(!res.ok) throw new Error(d.error || ('status ' + res.status));
+  return d;
+}
+function describeWallet(w){
+  if(!w) return 'No balance.';
+  const min = Math.floor((w.callSeconds || 0) / 60), sec = (w.callSeconds || 0) % 60;
+  const unlimited = w.unlimitedUntil && w.unlimitedUntil > Date.now();
+  return '<b style="color:var(--gold);">' + min + ' min ' + (sec ? sec + ' s ' : '') + 'of calls</b> · ' +
+    (unlimited ? 'unlimited chat until ' + new Date(w.unlimitedUntil).toLocaleDateString() : (w.messages || 0) + ' chat messages') +
+    (w.email ? '<br>First bought with: ' + escapeHtml(w.email) : '') +
+    (w.inCall ? '<br>(a call is in progress or wrapping up)' : '') +
+    '<br><span style="color:var(--muted2);font-size:.68rem;">Balance id …' + escapeHtml(String(w.walletId).slice(-6)) + '</span>';
+}
+let fanLookupLast = null;
+async function fanLookup(){
+  const email = (document.getElementById('aFanLookupEmail').value || '').trim().toLowerCase();
+  const out = document.getElementById('fanLookupResult');
+  if(!email.includes('@')){ out.textContent = 'Enter an email.'; return; }
+  out.textContent = 'Looking up…';
+  try{
+    const d = await walletAdmin({ op: 'lookup', email: email });
+    fanLookupLast = d;
+    const pays = (d.payments || []).map(function(p){
+      return new Date(p.paidAt).toLocaleDateString() + ' — ' + (p.kind === 'access' ? 'Bikini Walk access' : (p.tierId || 'pack')) + ' $' + ((p.amount || 0) / 100).toFixed(2);
+    });
+    out.innerHTML = '<b>' + escapeHtml(d.email) + '</b><br>' +
+      (d.wallet ? describeWallet(d.wallet) : 'No chat/call balance linked to this email.') +
+      '<br><span style="color:var(--muted);">Purchases: ' + (pays.length ? escapeHtml(pays.join(' · ')) : 'none recorded') + '</span>';
+    showThisBrowserWallet();
+  }catch(e){ out.textContent = '⚠ ' + e.message; }
+}
+async function showThisBrowserWallet(){
+  const el = document.getElementById('fanThisBrowser');
+  if(!el) return;
+  const id = getChatWalletId();
+  if(!id){ el.textContent = 'This browser has no chat/call balance.'; return; }
+  try{
+    const d = await walletAdmin({ op: 'wallet', walletId: id });
+    if(!d.wallet){ el.textContent = 'This browser has no chat/call balance.'; return; }
+    const email = (document.getElementById('aFanLookupEmail').value || '').trim().toLowerCase();
+    const linkedHere = fanLookupLast && fanLookupLast.wallet && fanLookupLast.wallet.walletId === id && fanLookupLast.email === email;
+    el.innerHTML = describeWallet(d.wallet) +
+      (email.includes('@') && !linkedHere
+        ? '<br><button class="small-btn" style="margin-top:.4rem;" onclick="linkThisBrowserWallet()">Link this balance to ' + escapeHtml(email) + '</button>'
+        : (linkedHere ? '<br>✓ Linked to ' + escapeHtml(email) : '<br>Look up an email above to link this balance to it.'));
+  }catch(e){ el.textContent = '⚠ ' + e.message; }
+}
+async function linkThisBrowserWallet(){
+  const email = (document.getElementById('aFanLookupEmail').value || '').trim().toLowerCase();
+  const id = getChatWalletId();
+  if(!email.includes('@') || !id) return;
+  if(!confirm('Link this browser\'s balance to ' + email + '? Signing in with that email on any device will then use it.')) return;
+  try{
+    await walletAdmin({ op: 'link', email: email, walletId: id });
+    showToast('✓ Linked to ' + email);
+    fanLookup();
+  }catch(e){ showToast('⚠ ' + e.message); }
 }
 
 // ── Voice Calls admin ──
