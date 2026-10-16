@@ -606,7 +606,10 @@ exports.handler = async function (event) {
           statusCode: 200,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ success: true, email: email, startedAt: trial.startedAt, memberExpired: !!member.expired,
-            walletId: await walletForEmail(store, email) }),
+            walletId: await walletForEmail(store, email),
+            // Signed proof of this email (not membership), so later page loads
+            // can pick up chat/call balances bought on another device.
+            emailPass: await makeMemberToken(store, email) }),
         };
       } catch (err) {
         console.error('verify-magic-link error:', err);
@@ -666,6 +669,14 @@ exports.handler = async function (event) {
 
     // A returning member's browser shows its pass; if it's genuine and their
     // access is still active, they get the paid door links again.
+    // A verified email's chat/call balance (free-preview visitors; members
+    // get it through 'member-session'). The pass proves the email.
+    if (body.action === 'email-wallet') {
+      const email = await readMemberToken(store, body.token);
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(email ? { valid: true, walletId: await walletForEmail(store, email) } : { valid: false }) };
+    }
+
     if (body.action === 'member-session') {
       const email = await readMemberToken(store, body.token);
       if (!email) {
