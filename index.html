@@ -1085,13 +1085,19 @@ html.bw-opening #bwOpening{display:flex;}
         <p style="color:var(--muted);font-size:.78rem;margin-bottom:1rem;">Fans buy call minutes, then talk to VYRA live (her ElevenLabs "VYRA Calls" agent — personality and voice are set in ElevenLabs). Each call lasts up to 10 minutes; fans are only charged for the time they actually talk. In Stripe, set each Payment Link's "After payment" redirect to <b>https://bikiniwalk.net/?bwchat=success</b> (same as the chat packs).</p>
         <label class="admin-label">Call photo (shown big on the call screen — a tall/portrait photo works best)</label>
         <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.6rem;">
-          <img id="aCallPhotoPreview" style="width:45px;height:60px;object-fit:cover;border-radius:6px;background:var(--surface2);"/>
+          <img id="aCallPhotoPreview" style="width:96px;height:128px;object-fit:cover;border-radius:8px;border:1px solid var(--gold);background:var(--surface2);"/>
           <label class="small-btn" for="aCallPhotoFileInput" style="cursor:pointer;">Upload</label>
           <input type="file" id="aCallPhotoFileInput" accept="image/*" style="display:none;" onchange="uploadCallPhoto(event)"/>
           <button class="remove-door-btn" id="clearCallPhotoBtn" style="display:none;" onclick="clearCallPhoto()" title="Remove photo">✕</button>
         </div>
         <input class="admin-input" id="aCallPhotoUrl" placeholder="Or paste an image URL" onchange="setCallPhotoFromUrl(this.value)" style="margin-bottom:.3rem;"/>
-        <p style="color:var(--muted);font-size:.72rem;margin:0 0 1rem;">Leave empty to use the chat avatar photo.</p>
+        <p style="color:var(--muted);font-size:.72rem;margin:0 0 .6rem;">Leave empty to use the chat avatar photo.</p>
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;">
+          <span style="font-size:.72rem;color:var(--muted);white-space:nowrap;">Photo position</span>
+          <span style="font-size:.68rem;color:var(--muted);">Top</span>
+          <input type="range" id="aCallPhotoPosY" min="0" max="100" step="1" style="flex:1;accent-color:var(--gold);" oninput="setCallPhotoPos(this.value)" onchange="saveCallPhotoPos()"/>
+          <span style="font-size:.68rem;color:var(--muted);">Bottom</span>
+        </div>
         <label class="admin-label">Monthly limit</label>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.5rem;">
           <div><div style="font-size:.7rem;color:var(--muted);margin-bottom:.2rem;">Max call minutes per month</div>
@@ -1316,6 +1322,7 @@ let state = {
   ],
   "callEnabled": false,
   "callPhoto": "",
+  "callPhotoPosY": 50,
   "callMonthlyLimit": 230,
   "callLimitResetDay": 7,
   "callTiers": [
@@ -3741,7 +3748,7 @@ function renderCallInvite(){
   const img = document.getElementById('callInviteAvatar');
   const fb = document.getElementById('callInviteAvatarFallback');
   const photo = callPhotoSrc();
-  if(photo){ img.src = photo; img.style.display = 'block'; fb.style.display = 'none'; }
+  if(photo){ img.src = photo; img.style.objectPosition = callPhotoObjectPosition(); img.style.display = 'block'; fb.style.display = 'none'; }
   else{ img.style.display = 'none'; fb.style.display = 'flex'; }
   const left = document.getElementById('callInviteLeft');
   if(left) left.textContent = callSeconds > 0 ? (callTimeLabel(callSeconds) + ' left') : '';
@@ -3804,7 +3811,7 @@ function openCallPanel(){
   const img = document.getElementById('callAvatarImg');
   const fb = document.getElementById('callAvatarFallback');
   const photo = callPhotoSrc();
-  if(photo){ img.src = photo; img.style.display = 'block'; fb.style.display = 'none'; }
+  if(photo){ img.src = photo; img.style.objectPosition = callPhotoObjectPosition(); img.style.display = 'block'; fb.style.display = 'none'; }
   else{ img.style.display = 'none'; fb.style.display = 'flex'; }
   document.getElementById('callPanel').classList.add('active');
   if(callSession) return;
@@ -3990,13 +3997,33 @@ window.addEventListener('pagehide', function(){
 
 // The call's own photo (Admin → Voice Calls), or the chat photo if none.
 function callPhotoSrc(){ return state.callPhoto || state.chatAvatarImage || ''; }
+// Up/down framing of the call photo (Admin slider): 0 = show the top, 100 = the bottom.
+function callPhotoObjectPosition(){
+  const y = Number(state.callPhotoPosY);
+  return '50% ' + (isFinite(y) ? Math.min(100, Math.max(0, y)) : 50) + '%';
+}
+function setCallPhotoPos(v){
+  state.callPhotoPosY = Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
+  const prev = document.getElementById('aCallPhotoPreview');
+  if(prev) prev.style.objectPosition = callPhotoObjectPosition();
+  renderCallInvite();
+  const big = document.getElementById('callAvatarImg');
+  if(big) big.style.objectPosition = callPhotoObjectPosition();
+}
+function saveCallPhotoPos(){
+  saveState();
+  showToast('✓ Photo position saved');
+}
 
 // ── Voice Calls admin ──
 function renderCallPhotoAdmin(){
   const prev = document.getElementById('aCallPhotoPreview');
   if(!prev) return;
-  prev.src = state.callPhoto || '';
-  prev.style.visibility = state.callPhoto ? 'visible' : 'hidden';
+  prev.src = callPhotoSrc();
+  prev.style.visibility = callPhotoSrc() ? 'visible' : 'hidden';
+  prev.style.objectPosition = callPhotoObjectPosition();
+  const pos = document.getElementById('aCallPhotoPosY');
+  if(pos){ const y = Number(state.callPhotoPosY); pos.value = isFinite(y) ? y : 50; }
   document.getElementById('aCallPhotoUrl').value = (state.callPhoto && state.callPhoto.indexOf('data:') !== 0) ? state.callPhoto : '';
   document.getElementById('clearCallPhotoBtn').style.display = state.callPhoto ? 'flex' : 'none';
 }
