@@ -1081,6 +1081,15 @@ html.bw-opening #bwOpening{display:flex;}
           </div>
         </div>
         <p style="color:var(--muted);font-size:.78rem;margin-bottom:1rem;">Fans buy call minutes, then talk to VYRA live (her ElevenLabs "VYRA Calls" agent — personality and voice are set in ElevenLabs). Each call lasts up to 10 minutes; fans are only charged for the time they actually talk. In Stripe, set each Payment Link's "After payment" redirect to <b>https://bikiniwalk.net/?bwchat=success</b> (same as the chat packs).</p>
+        <label class="admin-label">Monthly limit</label>
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.5rem;">
+          <div><div style="font-size:.7rem;color:var(--muted);margin-bottom:.2rem;">Max call minutes per month</div>
+            <input type="number" id="aCallLimit" min="0" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.45rem .55rem;border-radius:5px;font-size:.85rem;width:110px;" placeholder="230"/></div>
+          <div><div style="font-size:.7rem;color:var(--muted);margin-bottom:.2rem;">Resets on day (1–28)</div>
+            <input type="number" id="aCallResetDay" min="1" max="28" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.45rem .55rem;border-radius:5px;font-size:.85rem;width:90px;" placeholder="7"/></div>
+        </div>
+        <p style="color:var(--muted);font-size:.72rem;margin:0 0 .4rem;">Set this a little under your ElevenLabs plan's monthly minutes, and the reset day to your ElevenLabs renewal day. When minutes used + minutes fans bought but haven't used reach the limit, call packs stop being sold ("sold out this month"). Fans who already bought minutes can still call. 0 = no limit.</p>
+        <div id="callStatsLine" style="font-family:'Space Mono',monospace;font-size:.72rem;color:var(--gold);margin-bottom:1rem;line-height:1.6;"></div>
         <label class="admin-label">Call packs — one Stripe Payment Link per pack</label>
         <div id="callTiersAdminList"></div>
         <button class="small-btn" onclick="addCallTier()" style="margin-top:.4rem;">+ Add call pack</button>
@@ -1295,6 +1304,8 @@ let state = {
     }
   ],
   "callEnabled": false,
+  "callMonthlyLimit": 230,
+  "callLimitResetDay": 7,
   "callTiers": [
     { "id": "call10", "label": "10 Minutes", "minutes": 10, "priceLabel": "$4.99", "stripeUrl": "" },
     { "id": "call20", "label": "20 Minutes", "minutes": 20, "priceLabel": "$8.99", "stripeUrl": "" },
@@ -3341,7 +3352,10 @@ function renderAdminPanel(){
   document.getElementById('clearChatAvatarBtn').style.display = state.chatAvatarImage ? 'flex' : 'none';
   renderChatTiersAdmin();
   document.getElementById('aCallEnabled').checked = !!state.callEnabled;
+  document.getElementById('aCallLimit').value = Number(state.callMonthlyLimit) || 0;
+  document.getElementById('aCallResetDay').value = Number(state.callLimitResetDay) || 1;
   renderCallTiersAdmin();
+  loadCallStats();
 
   document.getElementById('aFormspreeEndpoint').value = state.formspreeEndpoint || '';
   document.getElementById('aContactMessage').value = state.contactMessage || '';
@@ -3720,10 +3734,21 @@ function openCallFlow(){
   if(callSeconds >= CALL_MIN_START_SECONDS || callSession) openCallPanel();
   else openCallTierModal();
 }
-function openCallTierModal(){
-  const tiers = (Array.isArray(state.callTiers) ? state.callTiers : []).filter(t => t && t.stripeUrl);
+async function openCallTierModal(){
   const list = document.getElementById('callTierList');
-  list.innerHTML = tiers.length ? tiers.map(function(t){
+  list.innerHTML = '<p style="color:var(--muted);">Loading…</p>';
+  document.getElementById('callTierModal').classList.add('active');
+  // Monthly limit: only offer packs that still fit this month.
+  let remaining = Infinity;
+  try{
+    const res = await fetch('/.netlify/functions/bw-call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'capacity' }) });
+    const c = await res.json();
+    if(c && c.limited) remaining = Number(c.remainingSeconds) || 0;
+  }catch(e){}
+  const all = (Array.isArray(state.callTiers) ? state.callTiers : []).filter(t => t && t.stripeUrl);
+  const tiers = all.filter(t => (Number(t.minutes) || 0) * 60 <= remaining);
+  const soldOut = all.length > 0 && tiers.length === 0;
+  list.innerHTML = soldOut ? '<p style="color:var(--muted);">Calls are sold out for this month. Check back soon!</p>' : tiers.length ? tiers.map(function(t){
     return '<button class="chat-tier-btn" onclick="goToChatStripe(\'' + escapeHtml(t.id) + '\')">' +
       '<div>' +
         '<div class="tier-label">' + escapeHtml(t.label) + '</div>' +
@@ -3735,7 +3760,6 @@ function openCallTierModal(){
   const noticeEl = document.getElementById('callTierDisclaimerDisplay');
   noticeEl.innerHTML = renderMemberNotice(state.disclaimer);
   noticeEl.style.display = state.disclaimer ? 'block' : 'none';
-  document.getElementById('callTierModal').classList.add('active');
 }
 function closeCallTierModal(){
   document.getElementById('callTierModal').classList.remove('active');
@@ -3983,8 +4007,32 @@ function removeCallTier(index){
   state.callTiers.splice(index, 1);
   renderCallTiersAdmin();
 }
+async function loadCallStats(){
+  const el = document.getElementById('callStatsLine');
+  if(!el) return;
+  el.textContent = 'Loading call usage…';
+  try{
+    const res = await fetch('/.netlify/functions/site-state', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'call-stats', password: ADMIN_PASSWORD }),
+    });
+    if(!res.ok) throw new Error('status ' + res.status);
+    const d = await res.json();
+    const min = function(sec){ return Math.round((sec || 0) / 60); };
+    el.innerHTML = 'This period (since ' + escapeHtml(d.period || '') + '):<br>' +
+      min(d.usedSeconds) + ' min used · ' + min(d.owedSeconds) + ' min bought, not used yet' +
+      (d.limitMinutes > 0 ? '<br>' + min(d.remainingSeconds) + ' of ' + d.limitMinutes + ' min left to sell' : '<br>No monthly limit set');
+  }catch(e){
+    el.textContent = 'Call usage will show here after the site is deployed.';
+  }
+}
 function saveCallSettings(){
   state.callEnabled = document.getElementById('aCallEnabled').checked;
+  state.callMonthlyLimit = Math.max(0, Math.floor(Number(document.getElementById('aCallLimit').value) || 0));
+  state.callLimitResetDay = Math.min(28, Math.max(1, Math.floor(Number(document.getElementById('aCallResetDay').value) || 1)));
+  document.getElementById('aCallLimit').value = state.callMonthlyLimit;
+  document.getElementById('aCallResetDay').value = state.callLimitResetDay;
+  setTimeout(loadCallStats, 1500);
   saveState();
   renderCallInvite();
   showToast('✓ Call settings saved');
