@@ -194,7 +194,18 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .call-note{color:var(--muted);font-size:.72rem;line-height:1.5;max-width:300px;margin-top:.4rem;}
 .call-close{background:none;border:none;color:var(--muted);font-size:.85rem;cursor:pointer;margin-top:.2rem;}
 #welcomeBanner{margin:0 auto 1.8rem;max-width:460px;border-radius:14px;overflow:hidden;border:1px solid var(--gold);cursor:pointer;background:var(--surface2);}
-.welcome-inner{position:relative;width:100%;aspect-ratio:1/1;background:#000;}
+.welcome-inner{position:relative;width:100%;aspect-ratio:1/1;background:#000;overflow:hidden;}
+.wf-box{display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap;margin:.8rem 0 1.1rem;padding:.8rem;border:1px solid var(--border,#2a2a2a);border-radius:10px;}
+.wf-preview{position:relative;width:150px;aspect-ratio:1/1;flex:none;border-radius:10px;overflow:hidden;background:#000;border:1px solid var(--gold);}
+.wf-preview video{width:100%;height:100%;object-fit:cover;display:block;}
+.wf-preview .wf-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:.6rem;color:var(--muted);font-size:.68rem;line-height:1.4;}
+.wf-controls{flex:1 1 220px;min-width:0;}
+.wf-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.55rem;}
+.wf-row .wf-name{font-size:.72rem;color:var(--muted);width:58px;flex:none;}
+.wf-row .wf-end{font-size:.66rem;color:var(--muted);width:40px;flex:none;}
+.wf-row .wf-end:last-child{text-align:right;}
+.wf-row input[type=range]{flex:1;min-width:0;accent-color:var(--gold);}
+.wf-hint{color:var(--muted);font-size:.7rem;line-height:1.5;margin:.1rem 0 .5rem;}
 #welcomeVideo{width:100%;height:100%;object-fit:cover;display:none;}
 #welcomeStopBtn{display:none;position:absolute;top:.6rem;right:.6rem;z-index:2;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.3);color:#fff;width:36px;height:36px;border-radius:50%;align-items:center;justify-content:center;font-size:.95rem;cursor:pointer;}
 #welcomeClosedState{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.5rem;background:linear-gradient(135deg,rgba(245,200,66,.12),rgba(245,200,66,.04));}
@@ -999,11 +1010,33 @@ html.bw-opening #bwOpening{display:flex;}
           <button class="admin-btn" onclick="saveWelcomeVideo()">💾 Save</button>
           <button class="admin-btn-gold" onclick="previewWelcomeAdmin()">▶ Preview</button>
         </div>
+        <div class="wf-box" id="wfBox-free">
+          <div class="wf-preview" id="wfPreview-free"><video muted loop playsinline preload="metadata"></video><div class="wf-empty"></div></div>
+          <div class="wf-controls">
+            <div class="admin-label" style="margin-bottom:.45rem;">Video 1 framing</div>
+            <div class="wf-row"><span class="wf-name">Sideways</span><span class="wf-end">Left</span><input type="range" min="0" max="100" step="1" data-wf="free" data-k="x" oninput="setWelcomeFraming(this)" onchange="saveWelcomeFraming()"/><span class="wf-end">Right</span></div>
+            <div class="wf-row"><span class="wf-name">Up/down</span><span class="wf-end">Top</span><input type="range" min="0" max="100" step="1" data-wf="free" data-k="y" oninput="setWelcomeFraming(this)" onchange="saveWelcomeFraming()"/><span class="wf-end">Bottom</span></div>
+            <div class="wf-row"><span class="wf-name">Zoom</span><span class="wf-end">100%</span><input type="range" min="100" max="250" step="5" data-wf="free" data-k="zoom" oninput="setWelcomeFraming(this)" onchange="saveWelcomeFraming()"/><span class="wf-end" data-wf-zoom="free">100%</span></div>
+            <p class="wf-hint">The box on the site is square. A wide video can move left/right, a tall one up/down; zoom in to move it both ways.</p>
+            <button class="admin-btn" style="padding:.35rem .8rem;font-size:.72rem;" onclick="resetWelcomeFraming('free')">Reset</button>
+          </div>
+        </div>
         <label class="admin-label">Video 2: paying members (.mp4). Plays after purchase; leave blank to use video 1</label>
         <input class="admin-input" id="aWelcomeMemberUrl" placeholder="https://... .mp4"/>
         <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
           <button class="admin-btn" onclick="saveWelcomeVideo()">💾 Save</button>
           <button class="admin-btn-gold" onclick="previewWelcomeAdmin('member')">▶ Preview</button>
+        </div>
+        <div class="wf-box" id="wfBox-member">
+          <div class="wf-preview" id="wfPreview-member"><video muted loop playsinline preload="metadata"></video><div class="wf-empty"></div></div>
+          <div class="wf-controls">
+            <div class="admin-label" style="margin-bottom:.45rem;">Video 2 framing</div>
+            <div class="wf-row"><span class="wf-name">Sideways</span><span class="wf-end">Left</span><input type="range" min="0" max="100" step="1" data-wf="member" data-k="x" oninput="setWelcomeFraming(this)" onchange="saveWelcomeFraming()"/><span class="wf-end">Right</span></div>
+            <div class="wf-row"><span class="wf-name">Up/down</span><span class="wf-end">Top</span><input type="range" min="0" max="100" step="1" data-wf="member" data-k="y" oninput="setWelcomeFraming(this)" onchange="saveWelcomeFraming()"/><span class="wf-end">Bottom</span></div>
+            <div class="wf-row"><span class="wf-name">Zoom</span><span class="wf-end">100%</span><input type="range" min="100" max="250" step="5" data-wf="member" data-k="zoom" oninput="setWelcomeFraming(this)" onchange="saveWelcomeFraming()"/><span class="wf-end" data-wf-zoom="member">100%</span></div>
+            <p class="wf-hint">The box on the site is square. A wide video can move left/right, a tall one up/down; zoom in to move it both ways.</p>
+            <button class="admin-btn" style="padding:.35rem .8rem;font-size:.72rem;" onclick="resetWelcomeFraming('member')">Reset</button>
+          </div>
         </div>
       </div>
 
@@ -1229,6 +1262,7 @@ let state = {
   "renewalStripeUrl": "",
   "disclaimer": "Bikini Walk — Member Access Notice\n\nBikini Walk features exclusive content from VYRA, a digital music artist.\n\nAll content available here is exclusive, copyrighted material intended for members only.\n\nBy purchasing or gaining access to Bikini Walk, you acknowledge and agree that:\n\n* All sales are final. No refunds will be issued once access has been granted.\n* Recording, downloading, copying, screen-capturing, or screen-recording any Bikini Walk content is prohibited — ==this includes sending it to friends or family, posting it on social media, or uploading it to any other website or platform.==\n* Membership access is for the individual purchaser only and may not be shared with others.\n* Unauthorized use or distribution of Bikini Walk content may result in immediate termination of access without refund and may lead to further legal action.\n\nVYRA is a digitally created artist, and Bikini Walk is an exclusive digital entertainment experience created for VYRA members.\n\nBy continuing with your purchase and accessing Bikini Walk, you agree to these terms.",
   "welcomeVideoMember": { "url": "" },
+  "welcomeFraming": { "free": { "x": 50, "y": 50, "zoom": 100 }, "member": { "x": 50, "y": 50, "zoom": 100 } },
   "welcomeVideo": {
     "url": "https://res.cloudinary.com/duy0bc0wj/video/upload/v1784094865/Vyra_Intro_bplrjz.mp4"
   },
@@ -2296,8 +2330,28 @@ function currentWelcomeUrl(){
   const memberVid = memberWelcomeUrl || welcomeSrc(state.welcomeVideoMember);
   return memberVid || free;
 }
+// Framing set in Admin (position + zoom), separately for each welcome video.
+// Stored in state.welcomeFraming so it's public even though video 2's link isn't.
+function welcomeFramingFor(which){
+  const all = state.welcomeFraming || {};
+  const f = all[which] || {};
+  function num(v, lo, hi, d){ v = Number(v); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; }
+  return { x: num(f.x, 0, 100, 50), y: num(f.y, 0, 100, 50), zoom: num(f.zoom, 100, 250, 100) };
+}
+function currentWelcomeWhich(){
+  if(!isPaidUnlocked()) return 'free';
+  return (memberWelcomeUrl || welcomeSrc(state.welcomeVideoMember)) ? 'member' : 'free';
+}
+function applyWelcomeFraming(el, which){
+  if(!el) return;
+  const f = welcomeFramingFor(which);
+  el.style.objectPosition = f.x + '% ' + f.y + '%';
+  el.style.transformOrigin = f.x + '% ' + f.y + '%';
+  el.style.transform = f.zoom > 100 ? 'scale(' + (f.zoom / 100) + ')' : '';
+}
 function renderWelcomeBanner(){
   const videoEl = document.getElementById('welcomeVideo');
+  applyWelcomeFraming(videoEl, currentWelcomeWhich());
   const closedState = document.getElementById('welcomeClosedState');
   const banner = document.getElementById('welcomeBanner');
   const stopBtn = document.getElementById('welcomeStopBtn');
@@ -2347,6 +2401,7 @@ function replayWelcome(){
   const stopBtn = document.getElementById('welcomeStopBtn');
   if(!videoEl || !currentWelcomeUrl()) return;
   if(videoEl.getAttribute('src') !== currentWelcomeUrl()) videoEl.src = currentWelcomeUrl();
+  applyWelcomeFraming(videoEl, currentWelcomeWhich());
   videoEl.style.display = 'block';
   closedState.style.display = 'none';
   stopBtn.style.display = 'flex';
@@ -3434,6 +3489,7 @@ function renderAdminPanel(){
   document.getElementById('aLockHandleYVal').textContent = handlePos('y').toFixed(1) + '%';
   document.getElementById('aWelcomeUrl').value = state.welcomeVideo.url || '';
   document.getElementById('aWelcomeMemberUrl').value = (state.welcomeVideoMember && state.welcomeVideoMember.url) || '';
+  renderWelcomeFramingAdmin();
   document.getElementById('aChatEnabled').checked = !!state.chatEnabled;
   document.getElementById('aChatPersona').value = state.chatPersonaPrompt || '';
   document.getElementById('aChatAvatarPreview').src = state.chatAvatarImage || '';
@@ -4469,8 +4525,58 @@ function saveWelcomeVideo(){
   state.welcomeVideoMember.url = optimizeCloudinaryUrl(document.getElementById('aWelcomeMemberUrl').value.trim());
   document.getElementById('aWelcomeMemberUrl').value = state.welcomeVideoMember.url;
   const saving = saveState();
-  if(looksLikeR2(state.welcomeVideo.url) || looksLikeR2(state.welcomeVideoMember.url)) saving.then(refreshAdminPlayLinks);
+  if(looksLikeR2(state.welcomeVideo.url) || looksLikeR2(state.welcomeVideoMember.url)) saving.then(refreshAdminPlayLinks).then(renderWelcomeFramingAdmin);
+  else renderWelcomeFramingAdmin();
   showToast('✓ Welcome video saved');
+}
+// ── Welcome video framing (Admin) ──
+function adminWelcomePlayable(which){
+  const v = which === 'member' ? (state.welcomeVideoMember || {}) : (state.welcomeVideo || {});
+  if(!v.url) return { url: '', note: which === 'member' ? 'No video 2 yet. Members see video 1, using video 1’s framing.' : 'Add video 1 first.' };
+  if(v.playUrl && v.playUrlFor === v.url) return { url: v.playUrl };
+  if(looksLikeR2(v.url)) return { url: '', note: 'Click Save above, wait a second, and the preview appears here.' };
+  return { url: v.url };
+}
+function renderWelcomeFramingAdmin(){
+  ['free', 'member'].forEach(function(which){
+    const box = document.getElementById('wfPreview-' + which);
+    if(!box) return;
+    const f = welcomeFramingFor(which);
+    document.querySelectorAll('input[data-wf="' + which + '"]').forEach(function(inp){ inp.value = f[inp.getAttribute('data-k')]; });
+    const z = document.querySelector('[data-wf-zoom="' + which + '"]'); if(z) z.textContent = f.zoom + '%';
+    const vid = box.querySelector('video'), empty = box.querySelector('.wf-empty');
+    const p = adminWelcomePlayable(which);
+    if(p.url){
+      if(vid.getAttribute('src') !== p.url){ vid.src = p.url; }
+      vid.style.display = 'block'; empty.style.display = 'none';
+      const pr = vid.play(); if(pr && pr.catch) pr.catch(function(){});
+    }else{
+      vid.pause(); vid.removeAttribute('src'); vid.style.display = 'none';
+      empty.style.display = 'flex'; empty.textContent = p.note;
+    }
+    applyWelcomeFraming(vid, which);
+  });
+}
+function setWelcomeFraming(inp){
+  const which = inp.getAttribute('data-wf'), k = inp.getAttribute('data-k');
+  state.welcomeFraming = state.welcomeFraming || {};
+  const f = welcomeFramingFor(which);
+  f[k] = Number(inp.value);
+  state.welcomeFraming[which] = f;
+  const z = document.querySelector('[data-wf-zoom="' + which + '"]'); if(z) z.textContent = f.zoom + '%';
+  applyWelcomeFraming(document.querySelector('#wfPreview-' + which + ' video'), which);
+  applyWelcomeFraming(document.getElementById('welcomeVideo'), currentWelcomeWhich());
+}
+function saveWelcomeFraming(){
+  saveState();
+  showToast('✓ Video framing saved');
+}
+function resetWelcomeFraming(which){
+  state.welcomeFraming = state.welcomeFraming || {};
+  state.welcomeFraming[which] = { x: 50, y: 50, zoom: 100 };
+  renderWelcomeFramingAdmin();
+  applyWelcomeFraming(document.getElementById('welcomeVideo'), currentWelcomeWhich());
+  saveWelcomeFraming();
 }
 function previewWelcomeAdmin(which){
   const v = which === 'member' ? (state.welcomeVideoMember || {}) : state.welcomeVideo;
