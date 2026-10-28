@@ -16,8 +16,16 @@
 // function strips out and returns separately as `memory` so the frontend
 // can save it for next time — no second API call required.
 //
+// FREE SAMPLE: fans who have proven their email (sign-in link → emailPass,
+// or a member pass) get a few free messages once per email before buying a
+// pack (Admin → Paid Chat → Free sample messages, default 5, 0 = off).
+// The count lives on the server ('chatsample:<email>'), so clearing the
+// browser doesn't reset it. Sample replies are text only (no wallet, so
+// bw-voice.js has nothing to speak).
+//
 // Frontend calls this as: POST /.netlify/functions/bw-chat
-// Body: { message, history: [{role,content}], walletId, fanProfile }
+// Body: { message, history: [{role,content}], walletId, fanProfile, samplePass }
+//   or  { action: 'sample-status', samplePass } → { left, size }
 // (any systemPrompt sent by the browser is ignored — the persona is read from the server)
 // Returns: { reply, memory }
 
@@ -72,6 +80,31 @@ function getSiteStore(){
 }
 function validWalletId(id){ return /^[a-f0-9]{48}$/.test(String(id || '')); }
 
+// Same signed pass as site-state.js (secret 'secret:member-token').
+// Returns the proven email, or '' if the pass is missing, forged or expired.
+const crypto = require('crypto');
+function b64url(buf){ return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+async function emailFromPass(store, token){
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 2) return '';
+    const rec = await store.get('secret:member-token', { type: 'json' });
+    if (!rec || !rec.secret) return '';
+    const expected = b64url(crypto.createHmac('sha256', rec.secret).update(parts[0]).digest());
+    if (expected.length !== parts[1].length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts[1]))) return '';
+    const data = JSON.parse(Buffer.from(parts[0].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+    if (!data.e || !data.x || Date.now() > data.x) return '';
+    return String(data.e).trim().toLowerCase();
+  } catch (e) { return ''; }
+}
+function sampleSize(siteState){
+  const n = siteState && siteState.chatFreeSample;
+  if (n === undefined || n === null || n === '') return 5;
+  return Math.max(0, Math.min(20, Math.round(Number(n) || 0)));
+}
+function sampleKey(email){ return 'chatsample:' + email; }
+function json(code, obj){ return { statusCode: code, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }; }
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -87,23 +120,44 @@ exports.handler = async function (event) {
   const message = (body.message || '').toString().trim();
   const history = Array.isArray(body.history) ? body.history : [];
   const walletId = (body.walletId || '').toString();
-  if (!validWalletId(walletId)) {
-    return { statusCode: 402, body: JSON.stringify({ error: 'No chat balance', remaining: 0 }) };
-  }
   const store = getSiteStore();
-  let wallet;
+  let wallet = null;
+  let siteState = {};
   let customPersona = '';
   try {
-    wallet = await store.get('wallet:' + walletId, { type: 'json' });
+    if (validWalletId(walletId)) wallet = await store.get('wallet:' + walletId, { type: 'json' });
     const stored = await store.get('state', { type: 'json' });
-    customPersona = ((stored && stored.state && stored.state.chatPersonaPrompt) || '').toString().trim();
+    siteState = (stored && stored.state) || {};
+    customPersona = (siteState.chatPersonaPrompt || '').toString().trim();
   } catch (e) {
     console.error('bw-chat storage error:', e);
     return { statusCode: 500, body: JSON.stringify({ error: 'Something went wrong' }) };
   }
+
+  // Free sample: how many free messages this proven email has left.
+  const size = sampleSize(siteState);
+  async function sampleLeftFor(email){
+    if (!email || !size) return 0;
+    const rec = await store.get(sampleKey(email), { type: 'json' });
+    return Math.max(0, size - ((rec && rec.used) || 0));
+  }
+  if (body.action === 'sample-status') {
+    try {
+      const email = await emailFromPass(store, body.samplePass);
+      return json(200, { left: email ? await sampleLeftFor(email) : 0, size: size, hasEmail: !!email });
+    } catch (e) { console.error('bw-chat sample-status error:', e); return json(200, { left: 0, size: size }); }
+  }
+
   const walletExpired = wallet && wallet.expiresAt && Date.now() > wallet.expiresAt;
-  if (!wallet || walletExpired || !(wallet.remaining > 0)) {
-    return { statusCode: 402, body: JSON.stringify({ error: 'No chat balance', remaining: 0, expiresAt: 0 }) };
+  const paid = !!(wallet && !walletExpired && wallet.remaining > 0);
+  let sampleEmail = '';
+  let sampleLeft = 0;
+  if (!paid) {
+    sampleEmail = await emailFromPass(store, body.samplePass);
+    sampleLeft = await sampleLeftFor(sampleEmail);
+    if (!(sampleLeft > 0)) {
+      return { statusCode: 402, body: JSON.stringify({ error: 'No chat balance', remaining: 0, expiresAt: 0, sampleLeft: 0 }) };
+    }
   }
   const fanProfile = (body.fanProfile || '').toString().trim().slice(0, 1000);
 
@@ -124,6 +178,12 @@ exports.handler = async function (event) {
   systemPrompt += '\n\n---\nWhat you remember about this returning fan (empty if this is your first '
     + 'time talking with them): ' + (fanProfile || '(nothing yet — this is a new fan)');
   systemPrompt += '\n\n' + MEMORY_INSTRUCTIONS;
+  if (!paid && sampleLeft === 1) {
+    // Last free reply: end on a warm, open note (the site shows the packs next).
+    systemPrompt += '\n\nThis is the last reply of the fan\'s free sample chat. Answer them naturally as usual, '
+      + 'then in one short sentence let them know you\'d love to keep talking. Leave the conversation open and '
+      + 'inviting. Don\'t mention prices, payment, packs, or that this was a free sample.';
+  }
 
   const MAX_HISTORY_TURNS = 12;
   const trimmedHistory = history.slice(-MAX_HISTORY_TURNS).map(function (m) {
@@ -199,6 +259,15 @@ exports.handler = async function (event) {
     }
     if (!reply) {
       reply = "sorry, i'm a little spaced out right now — try that again?";
+    } else if (!paid) {
+      // Free sample message: count it for this email (no wallet, no voice).
+      try {
+        const rec = (await store.get(sampleKey(sampleEmail), { type: 'json' })) || { used: 0, startedAt: Date.now() };
+        rec.used = (rec.used || 0) + 1;
+        rec.lastAt = Date.now();
+        await store.setJSON(sampleKey(sampleEmail), rec);
+        sampleLeft = Math.max(0, size - rec.used);
+      } catch (e) { console.error('bw-chat: could not count sample message', e); }
     } else {
       // One message = one credit, charged only when a real reply came back.
       // Also remember this reply so bw-voice.js will speak it (once).
@@ -216,7 +285,9 @@ exports.handler = async function (event) {
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reply, memory, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0 }),
+      body: JSON.stringify(paid
+        ? { reply, memory, remaining: wallet.remaining, expiresAt: wallet.expiresAt || 0 }
+        : { reply, memory, remaining: 0, expiresAt: 0, sample: true, sampleLeft: sampleLeft }),
     };
   } catch (err) {
     console.error('bw-chat error:', err);
