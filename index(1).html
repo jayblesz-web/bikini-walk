@@ -368,6 +368,21 @@ html.bw-opening #bwOpening{display:flex;}
 .chat-input-row input{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.6rem .8rem;border-radius:20px;font-size:.85rem;outline:none;}
 .chat-input-row button{background:var(--gold);border:none;color:#000;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;font-size:1rem;}
 .chat-input-row button:disabled,.chat-input-row input:disabled{opacity:.5;cursor:default;}
+/* Phones and narrow screens: the chat opens full screen like a messaging app
+   (the floating box left the page showing around it). JS keeps its height
+   matched to the space above the on-screen keyboard. */
+@media (max-width: 819px){
+  #chatWindow{top:0;left:0;right:0;bottom:auto;width:100%;height:100vh;height:100dvh;max-height:none;border:none;border-radius:0;box-shadow:none;z-index:9500;}
+  #chatWindow .chat-window-head{padding:.8rem 1rem;}
+  #chatWindow .chat-window-head button{width:36px;height:36px;font-size:1rem;}
+  .chat-msg{font-size:.95rem;max-width:85%;}
+  .chat-input-row{padding:.7rem .8rem calc(.7rem + env(safe-area-inset-bottom, 0px));}
+  .chat-input-row input{font-size:16px;}  /* 16px+ stops iPhone zooming in when typing */
+  .chat-input-row button{width:44px;height:44px;}
+  body.chat-open #chatWidget{display:none !important;}  /* the page sets this button's display directly */
+  body.chat-open #contentOverlay{overflow:hidden;}
+  body.chat-open{overflow:hidden;}
+}
 
 /* full-screen door stage: tapped door grows to fill the screen, panel swings open */
 .door-stage{position:fixed;inset:0;z-index:9500;background:#000;display:none;}
@@ -3290,6 +3305,7 @@ function openChatWindow(){
   try{ stopWelcome(); }catch(e){} // the welcome video shouldn't keep playing under the chat
   document.getElementById('chatWindow').classList.add('active');
   document.body.classList.add('chat-open');
+  fitChatToScreen();
   updateChatCreditsBadge();
   const canSend = hasChatAccess() || chatSample.left > 0;
   if(!hasChatAccess() && chatSample.left > 0 && !chatHistory.length){
@@ -3302,9 +3318,27 @@ function openChatWindow(){
   if(input){ input.disabled = !canSend; if(canSend) input.focus(); }
   if(sendBtn) sendBtn.disabled = !canSend;
 }
+// Phones: keep the full-screen chat exactly the size of the visible area, so
+// the typing box sits right above the keyboard instead of behind it.
+function fitChatToScreen(){
+  const w = document.getElementById('chatWindow');
+  if(!w) return;
+  const vv = window.visualViewport;
+  if(!vv || window.innerWidth >= 820 || !w.classList.contains('active')){ w.style.height = ''; w.style.top = ''; return; }
+  w.style.height = Math.round(vv.height) + 'px';
+  w.style.top = Math.round(vv.offsetTop) + 'px';
+  const m = document.getElementById('chatMessages');
+  if(m) m.scrollTop = m.scrollHeight;
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', fitChatToScreen);
+  window.visualViewport.addEventListener('scroll', fitChatToScreen);
+}
+window.addEventListener('resize', fitChatToScreen);
 function minimizeChatWindow(){
   document.getElementById('chatWindow').classList.remove('active');
   document.body.classList.remove('chat-open');
+  fitChatToScreen();
 }
 // Converts a message into safe HTML with clickable links — used for chat
 // replies, which come from an AI model rather than admin-controlled text,
