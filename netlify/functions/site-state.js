@@ -51,6 +51,10 @@ const BLOB_KEY = 'state';
 const MAGIC_LINK_TTL_MS = 30 * 60 * 1000; // a magic link is valid for 30 minutes
 const MAGIC_LINK_REUSE_GRACE_MS = 15 * 60 * 1000; // still works for 15 min after first use
 
+// Calendar day in the owner's time zone (US Eastern), e.g. "2026-11-11".
+function statsDay(date){
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+}
 function getSiteStore(){
   const siteID = process.env.BLOBS_SITE_ID;
   const token = process.env.BLOBS_TOKEN;
@@ -632,6 +636,39 @@ exports.handler = async function (event) {
     // Free preview WITHOUT the email link — only allowed when the owner has
     // switched "Require email verification" OFF in Admin. Checked here on the
     // server, so a visitor can't skip verification while it's switched on.
+    // ── Visitor counter: taps on the 18+ door / Enter button ──
+    // Public (no password): one record per day (owner's time zone) with total
+    // taps and the distinct devices that tapped. Counts are approximate if two
+    // taps land at the exact same moment.
+    if (body.action === 'count-enter') {
+      const day = statsDay(new Date());
+      const key = 'stats:enter:' + day;
+      const dev = /^[a-f0-9]{32}$/.test(String(body.device || '')) ? String(body.device).slice(0, 16) : '';
+      try {
+        const rec = (await store.get(key, { type: 'json' })) || { taps: 0, devices: [] };
+        rec.taps = (rec.taps || 0) + 1;
+        rec.devices = rec.devices || [];
+        if (dev && rec.devices.indexOf(dev) === -1 && rec.devices.length < 50000) rec.devices.push(dev);
+        await store.setJSON(key, rec);
+      } catch (e) { console.error('count-enter failed', e); }
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true }) };
+    }
+    // Admin: the last 60 days of the counter.
+    if (body.action === 'enter-stats') {
+      if (body.password !== currentPassword) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Not authorized' }) };
+      }
+      const days = [];
+      const now = Date.now();
+      for (let i = 0; i < 60; i++) days.push(statsDay(new Date(now - i * 86400000)));
+      const uniqueDays = days.filter(function (d, i) { return days.indexOf(d) === i; });
+      const rows = await Promise.all(uniqueDays.map(async function (d) {
+        const rec = await store.get('stats:enter:' + d, { type: 'json' });
+        return { day: d, taps: (rec && rec.taps) || 0, visitors: (rec && rec.devices && rec.devices.length) || 0 };
+      }));
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: rows }) };
+    }
+
     if (body.action === 'start-trial') {
       if (siteState.requireEmailVerification !== false) {
         return { statusCode: 403, body: JSON.stringify({ error: 'Email verification is required.' }) };

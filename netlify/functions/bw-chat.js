@@ -16,11 +16,11 @@
 // function strips out and returns separately as `memory` so the frontend
 // can save it for next time — no second API call required.
 //
-// FREE SAMPLE: fans who have proven their email (sign-in link → emailPass,
-// or a member pass) get a few free messages once per email before buying a
-// pack (Admin → Paid Chat → Free sample messages, default 5, 0 = off).
-// The count lives on the server ('chatsample:<email>'), so clearing the
-// browser doesn't reset it. Sample replies are text only (no wallet, so
+// FREE SAMPLE: every visitor gets a few free messages before buying a pack
+// (Admin → Paid Chat → Free sample messages, default 5, 0 = off), counted on
+// the server per email when the visitor has a signed pass, otherwise per
+// device ('chatsample:dev:<deviceId>'). To limit abuse by clearing the
+// browser, one internet connection can start at most 3 device samples a day. Sample replies are text only (no wallet, so
 // bw-voice.js has nothing to speak).
 //
 // Frontend calls this as: POST /.netlify/functions/bw-chat
@@ -102,7 +102,15 @@ function sampleSize(siteState){
   if (n === undefined || n === null || n === '') return 5;
   return Math.max(0, Math.min(20, Math.round(Number(n) || 0)));
 }
-function sampleKey(email){ return 'chatsample:' + email; }
+function sampleKey(who){ return 'chatsample:' + who; }
+function validDeviceId(id){ return /^[a-f0-9]{32}$/.test(String(id || '')); }
+const DEVICE_SAMPLES_PER_IP_PER_DAY = 3;
+function ipKey(event){
+  const h = (event && event.headers) || {};
+  const ip = String(h['x-nf-client-connection-ip'] || (h['x-forwarded-for'] || '').split(',')[0] || 'unknown').trim();
+  const day = new Date().toISOString().slice(0, 10);
+  return 'chatsampleip:' + crypto.createHash('sha256').update(ip).digest('hex').slice(0, 24) + ':' + day;
+}
 function json(code, obj){ return { statusCode: code, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }; }
 
 exports.handler = async function (event) {
@@ -136,15 +144,26 @@ exports.handler = async function (event) {
 
   // Free sample: how many free messages this proven email has left.
   const size = sampleSize(siteState);
-  async function sampleLeftFor(email){
-    if (!email || !size) return 0;
-    const rec = await store.get(sampleKey(email), { type: 'json' });
+  // Who the sample belongs to: a proven email, else this device.
+  async function sampleWho(){
+    const email = await emailFromPass(store, body.samplePass);
+    if (email) return email;
+    return validDeviceId(body.sampleDevice) ? 'dev:' + body.sampleDevice : '';
+  }
+  async function sampleLeftFor(who){
+    if (!who || !size) return 0;
+    const rec = await store.get(sampleKey(who), { type: 'json' });
+    if (!rec && who.indexOf('dev:') === 0) {
+      // A device that hasn't started yet: refuse if this connection already started too many today.
+      const ipRec = await store.get(ipKey(event), { type: 'json' });
+      if (ipRec && (ipRec.devices || []).length >= DEVICE_SAMPLES_PER_IP_PER_DAY && (ipRec.devices || []).indexOf(who) === -1) return 0;
+    }
     return Math.max(0, size - ((rec && rec.used) || 0));
   }
   if (body.action === 'sample-status') {
     try {
-      const email = await emailFromPass(store, body.samplePass);
-      return json(200, { left: email ? await sampleLeftFor(email) : 0, size: size, hasEmail: !!email });
+      const who = await sampleWho();
+      return json(200, { left: who ? await sampleLeftFor(who) : 0, size: size });
     } catch (e) { console.error('bw-chat sample-status error:', e); return json(200, { left: 0, size: size }); }
   }
 
@@ -153,7 +172,7 @@ exports.handler = async function (event) {
   let sampleEmail = '';
   let sampleLeft = 0;
   if (!paid) {
-    sampleEmail = await emailFromPass(store, body.samplePass);
+    sampleEmail = await sampleWho();
     sampleLeft = await sampleLeftFor(sampleEmail);
     if (!(sampleLeft > 0)) {
       return { statusCode: 402, body: JSON.stringify({ error: 'No chat balance', remaining: 0, expiresAt: 0, sampleLeft: 0 }) };
@@ -262,7 +281,14 @@ exports.handler = async function (event) {
     } else if (!paid) {
       // Free sample message: count it for this email (no wallet, no voice).
       try {
-        const rec = (await store.get(sampleKey(sampleEmail), { type: 'json' })) || { used: 0, startedAt: Date.now() };
+        const existing = await store.get(sampleKey(sampleEmail), { type: 'json' });
+        const rec = existing || { used: 0, startedAt: Date.now() };
+        if (!existing && sampleEmail.indexOf('dev:') === 0) {
+          const k = ipKey(event);
+          const ipRec = (await store.get(k, { type: 'json' })) || { devices: [] };
+          if (ipRec.devices.indexOf(sampleEmail) === -1) ipRec.devices.push(sampleEmail);
+          await store.setJSON(k, ipRec);
+        }
         rec.used = (rec.used || 0) + 1;
         rec.lastAt = Date.now();
         await store.setJSON(sampleKey(sampleEmail), rec);
