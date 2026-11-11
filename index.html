@@ -23,6 +23,32 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 
 /* ===== HERO / FRONT PAGE ===== */
 .hero{position:relative;width:100%;min-height:100vh;overflow:hidden;background:var(--surface2);}
+/* ── Big pink door front page ── */
+body.front-door #heroSection{display:none;}
+#doorLanding{display:none;}
+body.front-door #doorLanding{display:flex;}
+#doorLanding{position:relative;min-height:100vh;min-height:100dvh;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem 1.2rem 2.4rem;box-sizing:border-box;text-align:center;
+  background:radial-gradient(ellipse at 50% 38%,rgba(255,45,140,.30),rgba(120,0,60,.16) 38%,#07020a 72%);overflow:hidden;}
+.dl-age{display:inline-flex;align-items:center;gap:.55rem;font-family:'Syne',sans-serif;font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:clamp(.95rem,3.6vw,1.25rem);color:#fff;}
+.dl-age .dl-18{background:var(--gold,#f5c842);color:#1a1205;border-radius:999px;padding:.18rem .62rem;letter-spacing:.04em;}
+.dl-door{position:relative;width:min(78vw,340px);aspect-ratio:3/4;border:none;padding:0;cursor:pointer;border-radius:14px 14px 6px 6px;background:#3a0820;
+  box-shadow:0 0 0 3px #ff4fa3,0 0 34px 6px rgba(255,60,150,.65),0 0 110px 24px rgba(255,40,140,.32);overflow:hidden;transition:transform .25s ease, box-shadow .25s ease;}
+.dl-door:hover,.dl-door:focus-visible{transform:scale(1.025);box-shadow:0 0 0 3px #ff7cbd,0 0 44px 10px rgba(255,80,165,.8),0 0 130px 30px rgba(255,40,140,.4);outline:none;}
+.dl-door img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+.dl-door .dl-css-door{position:absolute;inset:8% 10% 0;border-radius:8px 8px 0 0;background:linear-gradient(160deg,#ff5aa8,#c2185b 55%,#7a0e3a);box-shadow:inset 0 0 0 6px rgba(255,255,255,.12),inset 0 0 0 14px rgba(0,0,0,.18);}
+.dl-door .dl-css-door::after{content:"";position:absolute;right:12%;top:52%;width:9%;aspect-ratio:1/1;border-radius:50%;background:var(--gold,#f5c842);box-shadow:0 0 12px rgba(245,200,66,.8);}
+.dl-door .dl-tap{position:absolute;left:50%;bottom:6%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;padding:.45rem .9rem;border-radius:999px;white-space:nowrap;border:1px solid rgba(255,255,255,.25);}
+#doorLanding.opening .dl-door{transform:scale(1.18);opacity:0;transition:transform .45s ease, opacity .45s ease;}
+.dl-title{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1.7rem,7vw,2.6rem);color:#fff;margin:.4rem 0 0;line-height:1.1;}
+.dl-text{max-width:34rem;color:rgba(255,255,255,.82);font-size:clamp(.95rem,3.6vw,1.06rem);line-height:1.55;margin:0;white-space:pre-line;}
+.dl-offer{max-width:34rem;color:var(--gold,#f5c842);font-weight:700;font-size:.92rem;line-height:1.5;margin:0;}
+.dl-enter{margin-top:.3rem;background:linear-gradient(135deg,#ff4fa3,#e0207a);color:#fff;border:none;border-radius:999px;padding:.95rem 2rem;font-family:'Syne',sans-serif;font-weight:800;font-size:1.02rem;cursor:pointer;box-shadow:0 8px 28px rgba(255,60,150,.45);min-height:48px;}
+.dl-enter:hover{filter:brightness(1.08);}
+.dl-enter:focus-visible{outline:3px solid #fff;outline-offset:3px;}
+.dl-fine{max-width:30rem;color:rgba(255,255,255,.5);font-size:.74rem;line-height:1.5;margin:.2rem 0 0;}
+.dl-fine a{color:rgba(255,255,255,.75);}
+.dl-member{background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:.8rem;cursor:pointer;padding:.3rem;}
+@media (prefers-reduced-motion: reduce){.dl-door,#doorLanding.opening .dl-door{transition:none;}}
 .hero-bg{position:absolute;inset:0;z-index:0;overflow:hidden;}
 .hero-bg img{position:absolute;top:0;left:0;display:block;}
 .hero-overlay{position:absolute;inset:0;z-index:1;background:linear-gradient(to bottom, rgba(8,8,8,.55) 0%, rgba(8,8,8,.35) 45%, rgba(8,8,8,.85) 100%);}
@@ -476,7 +502,23 @@ html.bw-opening #bwOpening{display:flex;}
 <body>
 <div id="bwOpening" aria-live="polite"><div class="bw-spin"></div><div>Opening Bikini Walk…</div></div>
 
-<!-- ============ FRONT PAGE ============ -->
+<!-- ============ FRONT PAGE: BIG PINK DOOR (default style) ============ -->
+<section id="doorLanding" aria-labelledby="dlTitle">
+  <div class="dl-age"><span>Enter</span><span class="dl-18">18+</span><span>and older</span></div>
+  <button type="button" class="dl-door" onclick="enterFromDoor()" aria-label="Enter Bikini Walk (18 and older)">
+    <img id="dlDoorImg" alt="" style="display:none;"/>
+    <div class="dl-css-door" id="dlCssDoor"></div>
+    <span class="dl-tap">Tap to enter</span>
+  </button>
+  <h1 class="dl-title" id="dlTitle">Bikini Walk</h1>
+  <p class="dl-text" id="dlText"></p>
+  <p class="dl-offer" id="dlOffer"></p>
+  <button type="button" class="dl-enter" onclick="enterFromDoor()">Enter — I'm 18 or older</button>
+  <p class="dl-fine">By entering you confirm you are at least 18, or the age of majority where you live. <a href="https://www.google.com" rel="nofollow">Not 18? Leave</a></p>
+  <button type="button" class="dl-member" onclick="openMemberSignIn()">Already paid? Sign in</button>
+</section>
+
+<!-- ============ FRONT PAGE: PHOTO STYLE ============ -->
 <section class="hero" id="heroSection">
   <div class="hero-bg" id="heroBg" style="display:none;"><img id="heroImg" src="" alt=""/></div>
   <div class="hero-overlay"></div>
@@ -494,7 +536,7 @@ html.bw-opening #bwOpening{display:flex;}
   <div class="hero-tag" id="heroTagEl">Bikini Walk</div>
   <div class="hero-title" id="heroTitleEl">Bikini Walk</div>
   <div class="hero-sub" id="heroSubEl">Exclusive members-only content. One-time purchase, instant access.</div>
-  <a class="doors-link" id="doorsLinkEl" onclick="enterTheDoors();return false;" href="#">
+  <a class="doors-link" id="doorsLinkEl" onclick="if(!liveEditMode) countEnter(); enterTheDoors();return false;" href="#">
     <span id="doorsLinkTextEl">Enter the doors at your own risk</span> <span class="arrow">→</span>
   </a>
 
@@ -803,9 +845,31 @@ html.bw-opening #bwOpening{display:flex;}
         <button class="admin-btn-gold" onclick="previewAsVisitor('paid')">👁 Preview as paying member</button>
       </div>
 
+      <div class="admin-section" id="aVisitorsSection">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:.8rem;">
+          <div class="admin-section-title" style="margin:0;">📊 Visitors (18+ Enter taps)</div>
+          <button class="admin-btn" style="padding:.4rem .9rem;font-size:.75rem;" onclick="loadEnterStats()">↻ Refresh</button>
+        </div>
+        <div id="aVisitorsSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem;margin-bottom:.8rem;"></div>
+        <div id="aVisitorsDays" style="font-size:.78rem;color:var(--muted);"></div>
+        <p style="color:var(--muted);font-size:.7rem;margin:.6rem 0 0;">Visitors = different devices, each counted once a day. Taps = every tap on the door or Enter button. Days are US Eastern time. Your own taps don't count while you're logged into Admin.</p>
+      </div>
+
+      <div class="admin-section" id="aDoorLandingSection">
+        <div class="admin-section-title">Front Page Style</div>
+        <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;cursor:pointer;"><input type="radio" name="aFrontStyle" value="door" onchange="setFrontStyle(this.value)"/> <span><b>Big pink door</b>: Enter (18+), Door 1 opens free with no email</span></label>
+        <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;cursor:pointer;"><input type="radio" name="aFrontStyle" value="photo" onchange="setFrontStyle(this.value)"/> <span><b>Photo</b>: the hero photo page (set up below)</span></label>
+        <label class="admin-label" for="aLandingTitle">Big door: headline</label>
+        <input class="admin-input" id="aLandingTitle" placeholder="Bikini Walk" onchange="saveLandingText()"/>
+        <label class="admin-label" for="aLandingText">Big door: what Bikini Walk is</label>
+        <textarea class="admin-input" id="aLandingText" rows="4" style="resize:vertical;" onchange="saveLandingText()"></textarea>
+        <p style="color:var(--muted);font-size:.72rem;margin:.2rem 0 .8rem;">Below this, the page adds a line built from your settings: which door is free, the price and the access days. The door picture is your default door image (Doors section).</p>
+        <button class="admin-btn-gold" onclick="previewFrontDoor()">👁 View front page</button>
+      </div>
+
       <div class="admin-section">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
-          <div class="admin-section-title" style="margin:0;">Front Page</div>
+          <div class="admin-section-title" style="margin:0;">Front Page (Photo style)</div>
           <button class="admin-btn-gold" onclick="previewHero()">👁 Preview Hero Photo</button>
         </div>
 
@@ -1001,12 +1065,13 @@ html.bw-opening #bwOpening{display:flex;}
       </div>
 
       <div class="admin-section">
-        <div class="admin-section-title">✉ Free preview sign-up</div>
-        <label style="display:flex;align-items:center;gap:.4rem;margin:.2rem 0 .6rem;cursor:pointer;">
+        <div class="admin-section-title">✉ Sign-in emails</div>
+        <p style="color:var(--muted);font-size:.78rem;margin-bottom:.9rem;">Visitors no longer give an email to enter: the free door opens for everyone. Emails now go only to paying members (their sign-in link). Use the test below to check they arrive.</p>
+        <label style="display:none;align-items:center;gap:.4rem;margin:.2rem 0 .6rem;cursor:pointer;">
           <input type="checkbox" id="aRequireVerify" onchange="toggleRequireVerify(this.checked)" style="width:16px;height:16px;accent-color:var(--gold);"/>
           <span style="font-size:.82rem;font-weight:700;">Require email verification (send a link before the free door opens)</span>
         </label>
-        <p style="color:var(--muted);font-size:.78rem;margin-bottom:.9rem;">Turn this off while the email isn't sending: visitors type their email and the free door opens immediately. The 72-hour limit still applies per email. Turn it back on once the test email below arrives.</p>
+        <p style="display:none;">Turn this off while the email isn't sending: visitors type their email and the free door opens immediately. The 72-hour limit still applies per email. Turn it back on once the test email below arrives.</p>
         <label class="admin-label">Send a test email to</label>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
           <input class="admin-input" id="aTestEmailTo" type="email" placeholder="you@example.com" style="flex:1;min-width:180px;margin:0;"/>
@@ -1132,7 +1197,7 @@ html.bw-opening #bwOpening{display:flex;}
           <input class="admin-input" type="number" id="aChatFreeSample" min="0" max="20" step="1" style="width:90px;margin:0;" onchange="saveChatSettings()"/>
           <span style="font-size:.72rem;color:var(--muted);">free back-and-forths before a pack is needed</span>
         </div>
-        <p style="color:var(--muted);font-size:.72rem;margin:0 0 1rem;">Once per email, for fans who confirmed their email with the sign-in link (and members). Text only. The last free reply ends on an open note, then the packs appear.</p>
+        <p style="color:var(--muted);font-size:.72rem;margin:0 0 1rem;">One sample per device, no email needed (members: per email). An internet connection can start at most 3 samples a day. Text only. The last free reply ends on an open note, then the packs appear.</p>
 
         <label class="admin-label" style="margin-top:.6rem;">Message packs — one Stripe Payment Link per tier</label>
         <div id="chatTiersAdminList"></div>
@@ -1452,7 +1517,8 @@ function isPaidUnlocked(){
 // True only while a verified free visitor is still within their 72-hour
 // window. Once this goes false, free doors lock exactly like all the rest.
 function isTrialActive(){
-  return !!(freeEnteredEmail && trialStartedAt && (Date.now() - trialStartedAt < TRIAL_LENGTH_MS));
+  // Free doors are open to everyone who enters: no email, no timer.
+  return true;
 }
 
 // Checks both that the email is on the approved list AND that it's still
@@ -1838,7 +1904,84 @@ function applyHeroEl(key, el, textEl){
     el.textContent = cfg.text;
   }
 }
+const LANDING_DEFAULT_TEXT = "Step behind the doors into VYRA's world: bikini fashion videos, photos and personal messages from VYRA, the digital music artist. You can even chat with her one-on-one.";
+function frontStyle(){ return state.frontPageStyle === 'photo' ? 'photo' : 'door'; }
+function freeDoorName(){
+  const firstFree = (state.doors || []).find(d => d.isFree && doorHasContent(d));
+  return firstFree ? (firstFree.label || 'Door 1') : '';
+}
+function landingOfferLine(){
+  const price = (state.accessPriceLabel || '$4.99').trim();
+  const days = Number(state.accessDurationDays) || 0;
+  const free = freeDoorName();
+  return (free ? free + ' is free, no sign-up. ' : '') +
+    'Unlock every door for ' + price + ', one-time' + (days > 0 ? ', for ' + days + (days === 1 ? ' day.' : ' days.') : '.');
+}
+function renderDoorLanding(){
+  document.body.classList.toggle('front-door', frontStyle() === 'door');
+  const t = document.getElementById('dlTitle'); if(!t) return;
+  t.textContent = (state.landingTitle && state.landingTitle.trim()) || 'Bikini Walk';
+  document.getElementById('dlText').textContent = (state.landingText && state.landingText.trim()) || LANDING_DEFAULT_TEXT;
+  document.getElementById('dlOffer').textContent = landingOfferLine();
+  const img = document.getElementById('dlDoorImg'), css = document.getElementById('dlCssDoor');
+  const src = state.defaultDoorThumbnail && state.defaultDoorThumbnail.trim();
+  if(src){ if(img.getAttribute('src') !== src) img.src = src; img.style.display = 'block'; css.style.display = 'none'; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; css.style.display = 'block'; }
+  const landing = document.getElementById('doorLanding'); if(landing) landing.classList.remove('opening');
+}
+// Tapping the big door: a short "door opens" moment, then into the room.
+// Visitor counter: one quick note to the server per tap on Enter (skipped for
+// the owner while logged into Admin). Never delays entering.
+function countEnter(){
+  try{
+    if(typeof adminMode !== 'undefined' && adminMode) return;
+    fetch('/.netlify/functions/site-state', { method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'count-enter', device: chatDeviceId() }) }).catch(function(){});
+  }catch(e){}
+}
+function loadEnterStats(){
+  const sum = document.getElementById('aVisitorsSummary'), list = document.getElementById('aVisitorsDays');
+  if(!sum) return;
+  sum.innerHTML = '<div style="color:var(--muted);font-size:.8rem;">Loading…</div>';
+  fetch('/.netlify/functions/site-state', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'enter-stats', password: ADMIN_PASSWORD }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      const days = (d && d.days) || [];
+      function total(n, k){ return days.slice(0, n).reduce(function(a, x){ return a + (x[k] || 0); }, 0); }
+      function box(label, n){
+        return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.6rem .7rem;">' +
+          '<div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">' + label + '</div>' +
+          '<div style="font-size:1.35rem;font-weight:800;color:var(--gold);line-height:1.2;">' + total(n, 'visitors') + '</div>' +
+          '<div style="font-size:.7rem;color:var(--muted);">visitors · ' + total(n, 'taps') + ' taps</div></div>';
+      }
+      sum.innerHTML = box('Today', 1) + box('Last 7 days', 7) + box('Last 30 days', 30);
+      const recent = days.slice(0, 14);
+      list.innerHTML = recent.some(function(x){ return x.taps; })
+        ? recent.map(function(x){ return '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding:.25rem 0;"><span>' + escapeHtml(x.day) + '</span><span>' + x.visitors + ' visitors · ' + x.taps + ' taps</span></div>'; }).join('')
+        : 'No taps yet. Once the new front page is live, visitors will show up here.';
+    })
+    .catch(function(){ sum.innerHTML = '<div style="color:var(--muted);font-size:.8rem;">Couldn’t load the counter. Try ↻ Refresh.</div>'; });
+}
+function enterFromDoor(){
+  countEnter();
+  const landing = document.getElementById('doorLanding');
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(landing && !reduce){
+    landing.classList.add('opening');
+    setTimeout(function(){ enterTheDoors(); setTimeout(function(){ landing.classList.remove('opening'); }, 400); }, 420);
+  }else enterTheDoors();
+}
+function setFrontStyle(v){ state.frontPageStyle = v === 'photo' ? 'photo' : 'door'; saveState(); renderDoorLanding(); showToast('✓ Front page style saved'); }
+function saveLandingText(){
+  state.landingTitle = document.getElementById('aLandingTitle').value.trim();
+  state.landingText = document.getElementById('aLandingText').value.trim();
+  saveState(); renderDoorLanding(); showToast('✓ Front page text saved');
+}
+function previewFrontDoor(){ window.open('/', '_blank'); }
 function renderFrontPage(){
+  renderDoorLanding();
   document.getElementById('footerCustomText').textContent = state.footerText;
 
   applyHeroEl('tag', document.getElementById('heroTagEl'));
@@ -1883,6 +2026,9 @@ async function enterTheDoors(){
     return;
   }
   unlocked = false; // in case access expired since it was granted this session
+  // No email needed: everyone goes straight in and can open the free door(s).
+  // (Members sign in with "Already paid? Sign in".)
+  if(true){ openContentRoom(); return; }
   // Returning free visitor — skip the form, let them straight back in. The
   // actual trial clock is always re-confirmed from the server (not just
   // trusted from localStorage) so it can't be tampered with locally.
@@ -2310,7 +2456,7 @@ function updateTrialCountdownBanner(){
   if(!banner) return;
   if(trialCountdownInterval){ clearInterval(trialCountdownInterval); trialCountdownInterval = null; }
 
-  if(isPaidUnlocked() || !isTrialActive()){
+  if(true){ // no free-access countdown any more (free doors don't expire)
     banner.style.display = 'none';
     return;
   }
@@ -2520,7 +2666,7 @@ function renderDoorsInto(gridId, emptyId, previewAs){
 
     let clickAction = '';
     if(canOpen) clickAction = "openDoor('" + d.id + "')";
-    else if(isPaywalled && d.isFree && !previewAs && !isPaid && !(freeEnteredEmail && trialStartedAt)) clickAction = "startPreviewFromDoor()";
+    else if(false) clickAction = "startPreviewFromDoor()"; // free doors no longer need an email
     else if(isPaywalled && !previewAs) clickAction = "showUnlockCTA('locked')";
 
     const doorClasses = 'door' + (hasContent ? '' : ' empty') + (hasThumb ? ' has-thumb' : '') + (isLocked ? ' paywalled' : '');
@@ -2602,8 +2748,7 @@ function showUnlockCTA(reason){
   document.getElementById('unlockCTAModal').classList.add('active');
 }
 function startPreviewFromDoor(){
-  closeContentRoom();
-  openGateLogin();
+  openContentRoom(); // no email step: free doors are open
 }
 function closeUnlockCTA(){
   document.getElementById('unlockCTAModal').classList.remove('active');
@@ -3153,17 +3298,30 @@ function chatFreeSampleSize(){
 function chatSamplePass(){
   try{ return localStorage.getItem('bw_email_pass') || localStorage.getItem('bw_member_token') || ''; }catch(e){ return ''; }
 }
+// A random id for this device, so the free chat sample works without email.
+function chatDeviceId(){
+  try{
+    let id = localStorage.getItem('bw_device_id');
+    if(!/^[a-f0-9]{32}$/.test(id || '')){
+      const b = new Uint8Array(16); (window.crypto || window.msCrypto).getRandomValues(b);
+      id = Array.prototype.map.call(b, function(x){ return ('0' + x.toString(16)).slice(-2); }).join('');
+      localStorage.setItem('bw_device_id', id);
+    }
+    return id;
+  }catch(e){ return ''; }
+}
 function inChatSample(){ return !hasChatAccess() && chatSample.left > 0; }
 function refreshChatSample(){
   const pass = chatSamplePass();
-  if(!pass || !chatFreeSampleSize()){
+  const device = chatDeviceId();
+  if((!pass && !device) || !chatFreeSampleSize()){
     chatSample = { left: 0, size: 0, known: true };
     updateChatCreditsBadge(); renderChatInvite();
     return Promise.resolve(chatSample);
   }
   return fetch('/.netlify/functions/bw-chat', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'sample-status', samplePass: pass }),
+    body: JSON.stringify({ action: 'sample-status', samplePass: pass || undefined, sampleDevice: device || undefined }),
   }).then(r => r.json()).then(function(d){
     chatSample = { left: Math.max(0, Number(d && d.left) || 0), size: Number(d && d.size) || 0, known: true };
   }).catch(function(e){
@@ -3178,7 +3336,7 @@ function openChatTierModal(){
     openChatWindow();
     return;
   }
-  if(!chatSample.known && chatSamplePass()){
+  if(!chatSample.known && (chatSamplePass() || chatDeviceId())){
     refreshChatSample().then(function(){
       if(chatSample.left > 0) openChatWindow(); else showChatTierList();
     });
@@ -3416,7 +3574,8 @@ function sendChatMessage(){
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message: message, history: chatHistory, walletId: getChatWalletId(), fanProfile: chatFanProfile,
-      samplePass: sampleMode ? chatSamplePass() : undefined })
+      samplePass: sampleMode ? (chatSamplePass() || undefined) : undefined,
+      sampleDevice: sampleMode ? (chatDeviceId() || undefined) : undefined })
   })
     .then(function(res){
       return res.json().catch(function(){ return {}; }).then(function(data){
@@ -3603,6 +3762,10 @@ function renderAdminPanel(){
   document.getElementById('aEmailList').value = state.emails.join('\n');
   document.getElementById('emailCount').textContent = '(' + state.emails.length + ')';
   document.getElementById('aAccessDays').value = state.accessDurationDays;
+  document.querySelectorAll('input[name="aFrontStyle"]').forEach(function(r){ r.checked = (r.value === frontStyle()); });
+  loadEnterStats();
+  document.getElementById('aLandingTitle').value = state.landingTitle || '';
+  document.getElementById('aLandingText').value = state.landingText || LANDING_DEFAULT_TEXT;
   document.getElementById('aAccessPrice').value = state.accessPriceLabel || '$4.99';
   document.getElementById('aUnlockImage').value = state.unlockImage || '';
   document.getElementById('aUnlockImageLocked').value = state.unlockImageLocked || '';
