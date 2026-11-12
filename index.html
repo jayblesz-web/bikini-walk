@@ -843,6 +843,7 @@ html.bw-opening #bwOpening{display:flex;}
         <h2>Backend</h2>
         <button class="admin-close" onclick="closeAdmin()">✕ Close</button>
       </div>
+      <div id="aPwWarning" style="display:none;background:#3a0d14;border:1px solid #ff6b6b;border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem;font-size:.85rem;line-height:1.5;color:#ffd6d6;"></div>
 
       <div class="admin-section" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
         <div>
@@ -1301,7 +1302,7 @@ html.bw-opening #bwOpening{display:flex;}
         </div>
       </div>
 
-      <div class="admin-section">
+      <div class="admin-section" id="aChangePwSection">
         <div class="admin-section-title">Change Admin Password</div>
         <input class="admin-input" id="cpCurrent" type="password" placeholder="Current password"/>
         <input class="admin-input" id="cpNew" type="password" placeholder="New password"/>
@@ -1724,6 +1725,10 @@ function saveState(newPasswordOverride){
       state: state,
     }),
   }).then(function(res){
+    if(res.status === 429){
+      showToast('⚠ Admin is locked for 15 minutes (too many wrong passwords). This change was not saved.');
+      return;
+    }
     if(!res.ok){
       console.error('shared save failed, status:', res.status);
       showToast('⚠ Saved on this device only — sync to the live site failed');
@@ -3798,15 +3803,27 @@ async function adminLogin(){
   err.style.display = 'none';
 
   let success = (pass === ADMIN_PASSWORD); // local fallback if the server check below can't run
+  let loginInfo = {};
+  err.textContent = 'Incorrect password.';
   try{
     const res = await fetch('/.netlify/functions/site-state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'login', password: pass }),
     });
+    if(res.status === 429){
+      // Locked after 5 wrong passwords: no local fallback.
+      const d = await res.json().catch(function(){ return {}; });
+      err.textContent = (d.error || 'Too many wrong passwords. Admin is locked for 15 minutes.') + ' Wait, then try again.';
+      err.style.display = 'block';
+      return;
+    }
     if(res.ok){
-      const data = await res.json();
-      success = data.success;
+      loginInfo = await res.json();
+      success = loginInfo.success;
+      if(!success && typeof loginInfo.triesLeft === 'number'){
+        err.textContent = 'Incorrect password. ' + (loginInfo.triesLeft === 1 ? '1 try left' : loginInfo.triesLeft + ' tries left') + ' before Admin locks for 15 minutes.';
+      }
     }
   }catch(e){ console.error('server login check failed, using local fallback:', e); }
 
@@ -3818,6 +3835,7 @@ async function adminLogin(){
     await syncSharedState(); // same freshness guarantee as re-opening Admin above
     await loadAdminPrivate();
     renderAdminPanel();
+    showPasswordWarning(loginInfo);
   }else{
     err.style.display = 'block';
   }
@@ -5406,6 +5424,11 @@ async function changeAdminPassword(){
         state: state,
       }),
     });
+    if(res.status === 429){
+      err.textContent = 'Admin is locked for 15 minutes after too many wrong passwords. Your old password still works. Try again later.';
+      err.style.display = 'block';
+      return;
+    }
     if(!res.ok){
       err.textContent = 'Password change failed to save (server error) — your old password still works. Try again.';
       err.style.display = 'block';
@@ -5423,6 +5446,31 @@ async function changeAdminPassword(){
   document.getElementById('cpNew').value = '';
   document.getElementById('cpConfirm').value = '';
   showToast('✓ Password updated and saved to the live site');
+  const warn = document.getElementById('aPwWarning');
+  if(warn){
+    if(warn.dataset.reset === '1'){
+      warn.innerHTML = '✓ New password saved. Last step: in Netlify, delete <b>ADMIN_RESET_PASSWORD</b> (Site configuration → Environment variables), then Deploys → Trigger deploy.';
+    }else{
+      warn.style.display = 'none';
+    }
+  }
+}
+// Red notice at the top of Admin after sign-in: factory password, or signed in with the Netlify reset password.
+function showPasswordWarning(info){
+  const warn = document.getElementById('aPwWarning');
+  if(!warn) return;
+  info = info || {};
+  warn.dataset.reset = info.usedResetPassword ? '1' : '';
+  const jump = ' <a href="#" onclick="document.getElementById(\'aChangePwSection\').scrollIntoView({behavior:\'smooth\'});return false;" style="color:#fff;font-weight:700;">Change it now ↓</a>';
+  if(info.usedResetPassword){
+    warn.innerHTML = '🔑 You signed in with the reset password from Netlify. Set a new password under <b>Change Admin Password</b> (type the reset password as the current one).' + jump;
+    warn.style.display = 'block';
+  }else if(info.isDefault){
+    warn.innerHTML = '⚠ Your Admin password is still the factory one, which anyone can find. Please change it.' + jump;
+    warn.style.display = 'block';
+  }else{
+    warn.style.display = 'none';
+  }
 }
 
 // ==========================================================
