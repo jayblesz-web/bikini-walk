@@ -4,3 +4,7 @@
 
 [functions]
   directory = "netlify/functions"
+
+# Daily visitor summary email: 13:00 UTC = 8 AM Eastern (9 AM in summer).
+[functions."bw-daily-summary"]
+  schedule = "0 13 * * *"

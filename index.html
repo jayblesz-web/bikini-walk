@@ -861,6 +861,16 @@ html.bw-opening #bwOpening{display:flex;}
         <div id="aVisitorsSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem;margin-bottom:.8rem;"></div>
         <div id="aVisitorsDays" style="font-size:.78rem;color:var(--muted);"></div>
         <p style="color:var(--muted);font-size:.7rem;margin:.6rem 0 0;">Visitors = different devices, each counted once a day. Taps = every tap on the door or Enter button. Days are US Eastern time. Your own taps don't count while you're logged into Admin.</p>
+        <div style="border-top:1px solid var(--border);margin-top:.9rem;padding-top:.9rem;">
+          <label class="admin-label" for="aSummaryEmail">✉ Daily summary email</label>
+          <input class="admin-input" id="aSummaryEmail" type="email" placeholder="Where to send the summary" style="margin-bottom:.5rem;"/>
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;margin-bottom:.7rem;cursor:pointer;"><input type="checkbox" id="aSummaryOn"/> Send me the daily summary (yesterday's visitors and taps, about 8 AM Eastern)</label>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            <button class="admin-btn" onclick="saveSummarySettings()">💾 Save</button>
+            <button class="admin-btn-gold" onclick="sendSummaryTest()">✉ Send a test now</button>
+          </div>
+          <div id="aSummaryStatus" style="font-size:.75rem;margin-top:.6rem;display:none;"></div>
+        </div>
       </div>
 
       <div class="admin-section" id="aDoorLandingSection">
@@ -1743,6 +1753,7 @@ async function loadAdminPrivate(){
     // Private text settings (not sent to visitors): VYRA's persona, contact email.
     if(typeof full.chatPersonaPrompt === 'string') state.chatPersonaPrompt = full.chatPersonaPrompt;
     if(typeof full.contactEmail === 'string') state.contactEmail = full.contactEmail;
+    if(typeof full.dailySummaryEmail === 'string') state.dailySummaryEmail = full.dailySummaryEmail;
     state.welcomeVideoMember = full.welcomeVideoMember || { url: '' };
     playLinksAt = Date.now();
     privateLoadedAt = data.loadedAt || Date.now();
@@ -1980,6 +1991,49 @@ function loadEnterStats(){
         : 'No taps yet. Once the new front page is live, visitors will show up here.';
     })
     .catch(function(){ sum.innerHTML = '<div style="color:var(--muted);font-size:.8rem;">Couldn’t load the counter. Try ↻ Refresh.</div>'; });
+}
+// Admin → Visitors → Daily summary email (sent by netlify/functions/bw-daily-summary.js).
+function fillSummarySettings(){
+  const box = document.getElementById('aSummaryEmail');
+  if(!box) return;
+  box.value = state.dailySummaryEmail || state.contactEmail || '';
+  document.getElementById('aSummaryOn').checked = !state.dailySummaryOff;
+  document.getElementById('aSummaryStatus').style.display = 'none';
+}
+function summaryStatus(msg, ok){
+  const el = document.getElementById('aSummaryStatus');
+  el.style.display = 'block';
+  el.style.color = ok ? 'var(--gold)' : '#ff6b6b';
+  el.textContent = msg;
+}
+function readSummarySettings(){
+  const email = document.getElementById('aSummaryEmail').value.trim();
+  const on = document.getElementById('aSummaryOn').checked;
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ summaryStatus('That email address doesn’t look right. Check it and try again.', false); return null; }
+  if(on && !email){ summaryStatus('Type the email address where the summary should go.', false); return null; }
+  return { email: email, on: on };
+}
+async function saveSummarySettings(){
+  const v = readSummarySettings();
+  if(!v) return null;
+  state.dailySummaryEmail = v.email;
+  state.dailySummaryOff = !v.on;
+  await saveState();
+  summaryStatus(v.on ? '✓ Saved. The summary will arrive each morning at ' + v.email + '.' : '✓ Saved. The daily summary is off.', true);
+  return v;
+}
+async function sendSummaryTest(){
+  const v = await saveSummarySettings();
+  if(!v) return;
+  if(!v.email){ summaryStatus('Type the email address where the summary should go.', false); return; }
+  summaryStatus('Sending…', true);
+  try{
+    const r = await fetch('/.netlify/functions/site-state', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'test-summary', password: ADMIN_PASSWORD, email: v.email }) });
+    const d = await r.json().catch(function(){ return {}; });
+    if(d.success) summaryStatus('✓ Test sent to ' + v.email + '. It should arrive within a minute (check spam too).', true);
+    else summaryStatus('✗ Not sent: ' + (d.detail || ('error ' + r.status)) + (d.hint ? ' — ' + d.hint : ''), false);
+  }catch(e){ summaryStatus('✗ Couldn’t reach the server. Try again.', false); }
 }
 function enterFromDoor(){
   countEnter();
@@ -3781,6 +3835,7 @@ function renderAdminPanel(){
   document.getElementById('aAccessDays').value = state.accessDurationDays;
   document.querySelectorAll('input[name="aFrontStyle"]').forEach(function(r){ r.checked = (r.value === frontStyle()); });
   loadEnterStats();
+  fillSummarySettings();
   document.getElementById('aLandingTitle').value = state.landingTitle || '';
   document.getElementById('aLandingText').value = (state.landingText && state.landingText !== LANDING_OLD_DEFAULT) ? state.landingText : LANDING_DEFAULT_TEXT;
   document.getElementById('aAccessPrice').value = state.accessPriceLabel || '$4.99';
