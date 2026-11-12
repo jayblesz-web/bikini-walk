@@ -47,6 +47,23 @@
 const { getStore } = require('@netlify/blobs');
 
 const DEFAULT_PASSWORD = 'changeme';
+// Wrong-password lockout (see the top of the POST handler).
+const PASSWORD_ACTIONS = ['login', 'save', 'admin-load', 'enter-stats', 'delete-email', 'wallet-admin', 'call-stats', 'test-summary', 'test-email'];
+const MAX_PASSWORD_FAILS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000;
+const FAIL_WINDOW_MS = 60 * 60 * 1000; // wrong tries more than an hour apart start a fresh count
+function clientIpHash(event){
+  const h = (event && event.headers) || {};
+  const ip = h['x-nf-client-connection-ip'] || String(h['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  return require('crypto').createHash('sha256').update('bw-admin:' + ip).digest('hex').slice(0, 24);
+}
+function lockedResponse(ms){
+  const mins = Math.max(1, Math.ceil(ms / 60000));
+  return { statusCode: 429, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    locked: true, minutes: mins,
+    error: 'Too many wrong passwords. Admin is locked for ' + mins + ' more minute' + (mins === 1 ? '' : 's') + '.',
+  }) };
+}
 const BLOB_KEY = 'state';
 const MAGIC_LINK_TTL_MS = 30 * 60 * 1000; // a magic link is valid for 30 minutes
 const MAGIC_LINK_REUSE_GRACE_MS = 15 * 60 * 1000; // still works for 15 min after first use
@@ -730,6 +747,38 @@ exports.handler = async function (event) {
     const currentPassword = (stored && stored.password) || DEFAULT_PASSWORD;
     const siteState = (stored && stored.state) || {};
 
+    // ── Admin password: lockout + forgotten-password reset ──
+    // 5 wrong passwords in a row from one internet connection lock every Admin
+    // action from that connection for 15 minutes. A right password clears the count.
+    // Forgot it? Set ADMIN_RESET_PASSWORD in Netlify (6+ characters) and redeploy:
+    // it then works as the Admin password, so the owner can sign in and set a
+    // new one under Change Admin Password, then delete the variable and redeploy.
+    let usedResetPassword = false;
+    let triesLeft = null;
+    if (PASSWORD_ACTIONS.indexOf(body.action) !== -1) {
+      const resetPw = String(process.env.ADMIN_RESET_PASSWORD || '');
+      if (resetPw.length >= 6 && body.password === resetPw) { body.password = currentPassword; usedResetPassword = true; }
+      const failKey = 'fail:' + clientIpHash(event);
+      const now = Date.now();
+      let fail = null;
+      try { fail = await store.get(failKey, { type: 'json' }); } catch (e) {}
+      if (fail && fail.lockedUntil > now) return lockedResponse(fail.lockedUntil - now);
+      if (body.password === currentPassword) {
+        if (fail) { try { await store.delete(failKey); } catch (e) {} }
+      } else {
+        if (!fail || fail.lockedUntil || now - (fail.lastAt || 0) > FAIL_WINDOW_MS) fail = { count: 0 };
+        fail.count += 1;
+        fail.lastAt = now;
+        if (fail.count >= MAX_PASSWORD_FAILS) fail.lockedUntil = now + LOCKOUT_MS;
+        try { await store.setJSON(failKey, fail); } catch (e) { console.error('lockout save failed', e); }
+        if (fail.lockedUntil) {
+          console.log('Admin locked for 15 min after ' + MAX_PASSWORD_FAILS + ' wrong passwords (action ' + body.action + ')');
+          return lockedResponse(LOCKOUT_MS);
+        }
+        triesLeft = MAX_PASSWORD_FAILS - fail.count;
+      }
+    }
+
     // Free preview WITHOUT the email link — only allowed when the owner has
     // switched "Require email verification" OFF in Admin. Checked here on the
     // server, so a visitor can't skip verification while it's switched on.
@@ -1021,7 +1070,9 @@ exports.handler = async function (event) {
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ success }),
+        body: JSON.stringify(success
+          ? { success, isDefault: currentPassword === DEFAULT_PASSWORD, usedResetPassword: usedResetPassword }
+          : { success, triesLeft: triesLeft }),
       };
     }
 
