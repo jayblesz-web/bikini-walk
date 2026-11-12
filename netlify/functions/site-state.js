@@ -120,6 +120,103 @@ async function sendMagicLinkEmail(email, link, isMember){
   }
 }
 
+// ── Daily visitor summary email ──
+// Sent each morning by the scheduled function bw-daily-summary.js (schedule in
+// netlify.toml), and on demand by Admin's "Send a test now" button.
+// Goes to Admin → Visitors → Daily summary email (falls back to contactEmail).
+async function sendResendEmail(to, subject, text, html){
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromAddress = process.env.RESEND_FROM_ADDRESS || 'Bikini Walk <onboarding@resend.dev>';
+  if(!apiKey) throw new Error('RESEND_API_KEY not configured');
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: fromAddress, to: [to], subject: subject, text: text, html: html }),
+  });
+  if(!res.ok){
+    const errText = await res.text();
+    let detail = errText;
+    try{ const j = JSON.parse(errText); detail = j.message || j.error || errText; }catch(e){}
+    const err = new Error('Resend error ' + res.status + ': ' + detail);
+    err.detail = detail;
+    err.hint = explainResendError(res.status, detail);
+    throw err;
+  }
+}
+// "2026-11-10" → "Tuesday, Nov 10" (the key is already an Eastern-time day).
+function prettyDay(key, withWeekday){
+  const d = new Date(key + 'T12:00:00Z');
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: withWeekday ? 'long' : 'short', month: 'short', day: 'numeric' }).format(d);
+}
+function summaryRecipient(state){
+  const v = String(state.dailySummaryEmail || state.contactEmail || '').trim();
+  return v.includes('@') ? v : '';
+}
+async function buildDailySummary(store, now){
+  // Yesterday plus the 29 days before it, newest first (Eastern time days).
+  const keys = [];
+  for(let i = 1; keys.length < 30 && i < 40; i++){
+    const k = statsDay(new Date(now - i * 86400000));
+    if(keys.indexOf(k) === -1) keys.push(k);
+  }
+  const rows = await Promise.all(keys.map(async function(k){
+    const rec = await store.get('stats:enter:' + k, { type: 'json' });
+    return { day: k, visitors: (rec && rec.devices && rec.devices.length) || 0, taps: (rec && rec.taps) || 0 };
+  }));
+  const y = rows[0], before = rows[1] || { visitors: 0, taps: 0 };
+  const week = rows.slice(0, 7), month = rows.slice(0, 30);
+  const sum = function(list, k){ return list.reduce(function(a, r){ return a + r[k]; }, 0); };
+  const avg7 = Math.round(sum(week, 'visitors') / 7 * 10) / 10;
+  const diff = y.visitors - before.visitors;
+  const diffText = diff === 0 ? 'same as the day before' : (diff > 0 ? diff + ' more than the day before' : (-diff) + ' fewer than the day before');
+  const plural = function(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); };
+  const site = (process.env.URL || 'https://bikiniwalk.net').replace(/\/$/, '');
+
+  const subject = 'Bikini Walk: ' + plural(y.visitors, 'visitor') + ' yesterday (' + prettyDay(y.day, false) + ')';
+  const lines = week.map(function(r){ return prettyDay(r.day, false) + ': ' + plural(r.visitors, 'visitor') + ', ' + plural(r.taps, 'tap'); });
+  const text =
+    'Yesterday (' + prettyDay(y.day, true) + '):\n' +
+    plural(y.visitors, 'visitor') + ', ' + plural(y.taps, 'tap') + ' on Enter (' + diffText + ').\n\n' +
+    '7-day average: ' + avg7 + ' visitors a day.\n' +
+    'Last 7 days: ' + plural(sum(week, 'visitors'), 'visitor') + ', ' + plural(sum(week, 'taps'), 'tap') + '.\n' +
+    'Last 30 days: ' + plural(sum(month, 'visitors'), 'visitor') + ', ' + plural(sum(month, 'taps'), 'tap') + '.\n\n' +
+    'Day by day:\n' + lines.join('\n') + '\n\n' +
+    'Visitors = different devices, counted once a day. Days are US Eastern time.\n' +
+    'More in Admin → Visitors: ' + site + '/\n\n' +
+    'To stop these emails: Admin → Visitors → untick "Send me the daily summary".';
+  const td = 'padding:4px 10px;border-top:1px solid #eee;';
+  const html =
+    '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.55;color:#222;max-width:520px;">' +
+      '<p style="margin:0 0 4px;color:#666;font-size:13px;">Yesterday, ' + prettyDay(y.day, true) + '</p>' +
+      '<p style="margin:0;font-size:28px;font-weight:bold;color:#c2185b;">' + plural(y.visitors, 'visitor') + '</p>' +
+      '<p style="margin:0 0 16px;">' + plural(y.taps, 'tap') + ' on Enter · ' + diffText + '</p>' +
+      '<p style="margin:0 0 4px;">7-day average: <b>' + avg7 + '</b> visitors a day</p>' +
+      '<p style="margin:0 0 4px;">Last 7 days: <b>' + sum(week, 'visitors') + '</b> visitors, ' + sum(week, 'taps') + ' taps</p>' +
+      '<p style="margin:0 0 16px;">Last 30 days: <b>' + sum(month, 'visitors') + '</b> visitors, ' + sum(month, 'taps') + ' taps</p>' +
+      '<table style="border-collapse:collapse;font-size:14px;"><tr><th style="text-align:left;padding:4px 10px;">Day</th><th style="text-align:right;padding:4px 10px;">Visitors</th><th style="text-align:right;padding:4px 10px;">Taps</th></tr>' +
+      week.map(function(r){ return '<tr><td style="' + td + '">' + prettyDay(r.day, false) + '</td><td style="' + td + 'text-align:right;">' + r.visitors + '</td><td style="' + td + 'text-align:right;">' + r.taps + '</td></tr>'; }).join('') +
+      '</table>' +
+      '<p style="color:#888;font-size:12px;margin-top:16px;">Visitors = different devices, counted once a day. Days are US Eastern time. ' +
+      'More in <a href="' + site + '/">Admin → Visitors</a>. To stop these emails, untick "Send me the daily summary" there.</p>' +
+    '</div>';
+  return { day: y.day, subject: subject, text: text, html: html };
+}
+// opts.test: send now even if switched off / already sent today; opts.to overrides the address.
+async function sendDailySummary(opts){
+  opts = opts || {};
+  const store = getSiteStore();
+  const state = await loadState(store);
+  if(!opts.test && state.dailySummaryOff) return { sent: false, reason: 'switched off in Admin' };
+  const to = opts.to || summaryRecipient(state);
+  if(!to) return { sent: false, reason: 'no email address set in Admin → Visitors' };
+  const summary = await buildDailySummary(store, opts.now || Date.now());
+  const sentKey = 'summary:sent:' + summary.day;
+  if(!opts.test && await store.get(sentKey)) return { sent: false, reason: 'already sent for ' + summary.day };
+  await sendResendEmail(to, (opts.test ? '[Test] ' : '') + summary.subject, summary.text, summary.html);
+  if(!opts.test) await store.set(sentKey, String(Date.now()));
+  return { sent: true, day: summary.day };
+}
+
 // Turns Resend's raw error into a plain-English fix for the site owner.
 function explainResendError(status, detail){
   const d = (detail || '').toLowerCase();
@@ -251,7 +348,7 @@ function playableUrl(address){
 }
 
 
-const PRIVATE_KEYS = ['emails', 'emailAccess', 'freeEmails', 'chatPersonaPrompt', 'contactEmail'];
+const PRIVATE_KEYS = ['emails', 'emailAccess', 'freeEmails', 'chatPersonaPrompt', 'contactEmail', 'dailySummaryEmail'];
 function publicState(state){
   if(!state) return state;
   const copy = Object.assign({}, state);
@@ -869,6 +966,29 @@ exports.handler = async function (event) {
       };
     }
 
+    // Admin-only: send the daily visitor summary right now (to the box's address).
+    if (body.action === 'test-summary') {
+      if (body.password !== currentPassword) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Not authorized' }) };
+      }
+      const to = String(body.email || '').trim();
+      if (!to.includes('@')) {
+        return { statusCode: 400, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: false, detail: 'Type an email address first.' }) };
+      }
+      try {
+        await sendDailySummary({ test: true, to: to });
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: true }) };
+      } catch (err) {
+        console.error('test-summary error:', err);
+        const notConfigured = /RESEND_API_KEY not configured/.test(err.message || '');
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          success: false,
+          detail: notConfigured ? 'RESEND_API_KEY is not set in Netlify.' : (err.detail || err.message),
+          hint: err.hint || '',
+        }) };
+      }
+    }
+
     // Admin-only: send a real test email and report exactly what Resend said.
     if (body.action === 'test-email') {
       if (body.password !== currentPassword) {
@@ -960,6 +1080,7 @@ exports.handler = async function (event) {
       if (!loadedAt) {
         incoming.chatPersonaPrompt = siteState.chatPersonaPrompt;
         incoming.contactEmail = siteState.contactEmail;
+        incoming.dailySummaryEmail = siteState.dailySummaryEmail;
         incoming.welcomeVideoMember = siteState.welcomeVideoMember || incoming.welcomeVideoMember;
         if (siteState.welcomeVideo) incoming.welcomeVideo = siteState.welcomeVideo;
       }
@@ -995,3 +1116,6 @@ exports.handler = async function (event) {
 
   return { statusCode: 405, body: 'Method Not Allowed' };
 };
+
+// Used by bw-daily-summary.js (the scheduled function).
+exports.sendDailySummary = sendDailySummary;
