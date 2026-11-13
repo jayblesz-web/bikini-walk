@@ -905,8 +905,8 @@ html.bw-opening #bwOpening{display:flex;}
         <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;cursor:pointer;"><input type="radio" name="aFrontStyle" value="door" onchange="setFrontStyle(this.value)"/> <span><b>Big pink door</b>: Enter (18+), Door 1 opens free with no email</span></label>
         <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;cursor:pointer;"><input type="radio" name="aFrontStyle" value="photo" onchange="setFrontStyle(this.value)"/> <span><b>Photo</b>: the hero photo page (set up below)</span></label>
         <div class="admin-label" style="margin-top:.2rem;">Big door: picture</div>
-        <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;cursor:pointer;"><input type="radio" name="aFrontDoorArt" value="pink" onchange="setFrontDoorArt(this.value)"/> <span>Pink door with gold knob</span></label>
-        <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;cursor:pointer;"><input type="radio" name="aFrontDoorArt" value="image" onchange="setFrontDoorArt(this.value)"/> <span>My default door image (Doors section)</span></label>
+        <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;cursor:pointer;"><input type="radio" name="aFrontDoorArt" value="image" onchange="setFrontDoorArt(this.value)"/> <span>My door image (the default door image in the Doors section)</span></label>
+        <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;cursor:pointer;"><input type="radio" name="aFrontDoorArt" value="pink" onchange="setFrontDoorArt(this.value)"/> <span>Simple drawn pink door</span></label>
         <label class="admin-label" for="aLandingTitle">Big door: headline</label>
         <input class="admin-input" id="aLandingTitle" placeholder="Bikini Walk" onchange="saveLandingText()"/>
         <label class="admin-label" for="aLandingText">Inside: line under “Bikini Walk”</label>
@@ -1987,10 +1987,10 @@ function renderDoorLanding(){
   const src = state.defaultDoorThumbnail && state.defaultDoorThumbnail.trim();
   const pink = document.getElementById('dlPinkDoor');
   css.style.display = 'none';
-  if(state.frontDoorArt === 'image' && src){
+  if(state.frontDoorArt !== 'pink' && src){
     if(img.getAttribute('src') !== src) img.src = src; img.style.display = 'block'; pink.style.display = 'none';
   }else{
-    img.style.display = 'none'; pink.style.display = 'block'; // the pink door (default)
+    img.style.display = 'none'; pink.style.display = 'block'; // drawn pink door: chosen in Admin, or no door image set
   }
   const landing = document.getElementById('doorLanding'); if(landing) landing.classList.remove('opening');
 }
@@ -2082,7 +2082,7 @@ function enterFromDoor(){
   }else enterTheDoors();
 }
 function setFrontStyle(v){ state.frontPageStyle = v === 'photo' ? 'photo' : 'door'; saveState(); renderDoorLanding(); showToast('✓ Front page style saved'); }
-function setFrontDoorArt(v){ state.frontDoorArt = v === 'image' ? 'image' : 'pink'; saveState(); renderDoorLanding(); showToast('✓ Front page door saved'); }
+function setFrontDoorArt(v){ state.frontDoorArt = v === 'pink' ? 'pink' : 'image'; saveState(); renderDoorLanding(); showToast('✓ Front page door saved'); }
 function saveLandingText(){
   state.landingTitle = document.getElementById('aLandingTitle').value.trim();
   state.landingText = document.getElementById('aLandingText').value.trim();
@@ -3429,13 +3429,26 @@ function refreshChatSample(){
     updateChatCreditsBadge(); renderChatInvite();
     return Promise.resolve(chatSample);
   }
-  return fetch('/.netlify/functions/bw-chat', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'sample-status', samplePass: pass || undefined, sampleDevice: device || undefined }),
-  }).then(r => r.json()).then(function(d){
+  // Ask the chat function; if Netlify sends back an error page instead of data
+  // (e.g. for a moment while a new upload goes live), wait 3 seconds and ask once more.
+  function ask(){
+    return fetch('/.netlify/functions/bw-chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'sample-status', samplePass: pass || undefined, sampleDevice: device || undefined }),
+    }).then(function(r){
+      return r.text().then(function(t){
+        let d = null; try{ d = JSON.parse(t); }catch(e){}
+        if(!r.ok || !d) throw new Error('status ' + r.status + ', reply began: ' + String(t).slice(0, 60));
+        return d;
+      });
+    });
+  }
+  return ask().catch(function(){
+    return new Promise(function(res){ setTimeout(res, 3000); }).then(ask);
+  }).then(function(d){
     chatSample = { left: Math.max(0, Number(d && d.left) || 0), size: Number(d && d.size) || 0, known: true };
   }).catch(function(e){
-    console.error('chat sample check failed:', e);
+    console.warn('chat sample check failed twice (' + e.message + ')');
     chatSample = { left: 0, size: 0, known: false };
   }).then(function(){ updateChatCreditsBadge(); renderChatInvite(); return chatSample; });
 }
@@ -3889,7 +3902,7 @@ function renderAdminPanel(){
   loadEnterStats();
   fillSummarySettings();
   document.getElementById('aLandingText').value = roomIntroText();
-  document.querySelectorAll('input[name="aFrontDoorArt"]').forEach(function(r){ r.checked = r.value === (state.frontDoorArt === 'image' ? 'image' : 'pink'); });
+  document.querySelectorAll('input[name="aFrontDoorArt"]').forEach(function(r){ r.checked = r.value === (state.frontDoorArt === 'pink' ? 'pink' : 'image'); });
   document.getElementById('aLandingTitle').value = state.landingTitle || '';
   document.getElementById('aAccessPrice').value = state.accessPriceLabel || '$4.99';
   document.getElementById('aUnlockImage').value = state.unlockImage || '';
