@@ -56,6 +56,9 @@ body.front-door #doorLanding{display:flex;}
   font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(.86rem,3.9vw,1.05rem);
   box-shadow:0 8px 28px rgba(0,0,0,.45),0 0 0 2px rgba(255,255,255,.18);transition:filter .2s ease;}
 .dl-door:hover .dl-door-enter,.dl-door:focus-visible .dl-door-enter{filter:brightness(1.1);}
+.dl-tagline{margin:-.35rem 0 0;font-family:'Poppins',sans-serif;font-style:italic;font-weight:400;font-size:clamp(.95rem,3.8vw,1.15rem);letter-spacing:.04em;color:#ffc2e0;}
+.dl-free-wrap{display:flex;flex-direction:column;align-items:center;gap:.1rem;}
+.dl-nosignup{margin:0;font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.6);}
 .dl-title{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1.7rem,7vw,2.6rem);color:#fff;margin:0;line-height:1.1;}
 .dl-text{max-width:34rem;color:rgba(255,255,255,.82);font-size:clamp(.95rem,3.6vw,1.06rem);line-height:1.55;margin:0;white-space:pre-line;}
 .dl-free{margin:0;font-family:'Syne',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:clamp(.92rem,3.9vw,1.15rem);line-height:1.35;color:var(--gold,#f5c842);text-shadow:0 0 18px rgba(245,200,66,.35);max-width:30rem;}
@@ -538,7 +541,11 @@ html.bw-opening #bwOpening{display:flex;}
 <section id="doorLanding" aria-labelledby="dlTitle">
   <div class="dl-age"><span class="dl-18">18+</span><span>Only</span></div>
   <h1 class="dl-title" id="dlTitle">Bikini Walk</h1>
-  <p class="dl-free" id="dlFree">Open Door 1 free — no sign-up required</p>
+  <p class="dl-tagline">A Gentleman’s Experience</p>
+  <div class="dl-free-wrap">
+    <p class="dl-free" id="dlFree">Open Door 1 It’s Free</p>
+    <p class="dl-nosignup">No sign-up required</p>
+  </div>
   <button type="button" class="dl-door" onclick="enterFromDoor()" aria-label="Enter — I'm 18 or older">
     <img id="dlDoorImg" alt="" style="display:none;"/>
     <div class="dl-css-door" id="dlCssDoor"></div>
@@ -1986,7 +1993,7 @@ function renderDoorLanding(){
   t.textContent = (state.landingTitle && state.landingTitle.trim()) || 'Bikini Walk';
   const free = freeDoorName();
   const freeEl = document.getElementById('dlFree');
-  freeEl.textContent = free ? ('Open ' + free + ' free — no sign-up required') : 'Free to enter — no sign-up required';
+  freeEl.textContent = free ? ('Open ' + free + ' It’s Free') : 'It’s Free to Enter';
   const img = document.getElementById('dlDoorImg'), css = document.getElementById('dlCssDoor');
   const src = state.defaultDoorThumbnail && state.defaultDoorThumbnail.trim();
   const pink = document.getElementById('dlPinkDoor');
