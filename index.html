@@ -1961,10 +1961,11 @@ function applyHeroEl(key, el, textEl){
   }
 }
 const LANDING_DEFAULT_TEXT = "Step into VYRA's world of exclusive bikini fashion, videos, photos, and personal messages. Explore the doors and chat with VYRA.";
-const ROOM_INTRO_DEFAULT = "VYRA’s world of exclusive bikini fashion, videos, photos, and personal messages.";
+const ROOM_INTRO_DEFAULT = "VYRA’s world of exclusive bikini fashion videos, photos, and personal chat messaging.";
+const ROOM_INTRO_PREVIOUS = "VYRA’s world of exclusive bikini fashion, videos, photos, and personal messages.";
 function roomIntroText(){
   const t = (state.landingText || '').trim();
-  return (!t || t === LANDING_OLD_DEFAULT || t === LANDING_DEFAULT_TEXT) ? ROOM_INTRO_DEFAULT : t;
+  return (!t || t === LANDING_OLD_DEFAULT || t === LANDING_DEFAULT_TEXT || t === ROOM_INTRO_PREVIOUS) ? ROOM_INTRO_DEFAULT : t;
 }
 const LANDING_OLD_DEFAULT = "Step behind the doors into VYRA's world: bikini fashion videos, photos and personal messages from VYRA, the digital music artist. You can even chat with her one-on-one.";
 function frontStyle(){ return state.frontPageStyle === 'photo' ? 'photo' : 'door'; }
