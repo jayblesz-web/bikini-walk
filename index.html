@@ -51,7 +51,11 @@ body.front-door #doorLanding{display:flex;}
   background:radial-gradient(ellipse at center,rgba(255,60,160,.55),rgba(255,40,140,.18) 45%,transparent 70%);animation:dlHalo 2.6s ease-in-out infinite;}
 @keyframes dlHalo{0%,100%{opacity:.7;transform:scale(.97);}50%{opacity:1;transform:scale(1.04);}}
 .dl-door:hover,.dl-door:focus-visible{animation:none;box-shadow:0 0 0 5px #ffa3d2,0 0 50px 20px rgba(255,110,185,1),0 0 140px 55px rgba(255,60,160,.8),0 0 280px 120px rgba(255,30,140,.5);}
-.dl-door .dl-tap{font-size:.85rem;padding:.55rem 1.1rem;bottom:5%;}
+.dl-door .dl-door-enter{position:absolute;left:50%;bottom:6%;transform:translateX(-50%);z-index:2;white-space:nowrap;
+  background:linear-gradient(135deg,#ff4fa3,#e0207a);color:#fff;border-radius:999px;padding:.85rem 1.5rem;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(.86rem,3.9vw,1.05rem);
+  box-shadow:0 8px 28px rgba(0,0,0,.45),0 0 0 2px rgba(255,255,255,.18);transition:filter .2s ease;}
+.dl-door:hover .dl-door-enter,.dl-door:focus-visible .dl-door-enter{filter:brightness(1.1);}
 .dl-title{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1.7rem,7vw,2.6rem);color:#fff;margin:0;line-height:1.1;}
 .dl-text{max-width:34rem;color:rgba(255,255,255,.82);font-size:clamp(.95rem,3.6vw,1.06rem);line-height:1.55;margin:0;white-space:pre-line;}
 .dl-free{margin:0;font-family:'Syne',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:clamp(.92rem,3.9vw,1.15rem);line-height:1.35;color:var(--gold,#f5c842);text-shadow:0 0 18px rgba(245,200,66,.35);max-width:30rem;}
@@ -544,9 +548,8 @@ html.bw-opening #bwOpening{display:flex;}
       <rect x="124" y="104" width="352" height="700" fill="none" stroke="#ff96c8" stroke-width="8"/>
       <circle cx="440" cy="450" r="20" fill="#f5c842"/>
     </svg>
-    <span class="dl-tap" aria-hidden="true">Tap to open</span>
+    <span class="dl-door-enter" aria-hidden="true">Enter — I’m 18 or older</span>
   </button>
-  <button type="button" class="dl-enter" onclick="enterFromDoor()">Enter — I'm 18 or older</button>
   <p class="dl-fine">By entering, you confirm you are at least 18, or the age of majority where you live. <a href="https://www.google.com" rel="nofollow">Not 18? Leave</a></p>
   <button type="button" class="dl-member" onclick="openMemberSignIn()">Already paid? Sign in</button>
 </section>
